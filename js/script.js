@@ -6,7 +6,7 @@ function sendTabMessage(subject, value) {
 	getActiveTab().then((tabs) => {
 		browser.tabs.insertCSS(tabs[0].id, { file: '../css/page.css' });
 		browser.tabs.sendMessage(tabs[0].id, { type: subject, params: value }).then(response => {
-			if(response)
+			if (response)
 				window.close();
 		});
 	});
