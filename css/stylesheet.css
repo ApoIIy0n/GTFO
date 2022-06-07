@@ -1,4 +1,5 @@
-html, body {
+html,
+body {
   width: 100px;
   background-color: #1b1b23;
 }
@@ -8,8 +9,9 @@ html, body {
 }
 
 .button {
+  font-family: 'Consolas', consolas !important;
   margin: 1% auto;
-  #padding: 4px;
+  padding: 1px;
   text-align: left;
   font-size: 0.85em;
   color: #FFFFFF;
@@ -21,6 +23,6 @@ html, body {
 }
 
 .selector:hover {
-	color: #FF0000;
-	--background-color: #666666;
+  color: #FF0000;
+  --background-color: #666666;
 }

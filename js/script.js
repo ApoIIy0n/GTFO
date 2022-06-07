@@ -1,47 +1,46 @@
 function getActiveTab() {
-  return browser.tabs.query({active: true, currentWindow: true});
+	return browser.tabs.query({ active: true, currentWindow: true });
 }
 
 function sendTabMessage(subject, value) {
 	getActiveTab().then((tabs) => {
-		browser.tabs.sendMessage(tabs[0].id, {type: subject, params: value});
-		browser.tabs.insertCSS(tabs[0].id, {file: '../css/page.css'});
+		browser.tabs.sendMessage(tabs[0].id, { type: subject, params: value });
+		browser.tabs.insertCSS(tabs[0].id, { file: '../css/page.css' });
 	});
 }
 
 function getCurrentWindowTabs() {
-  return browser.tabs.query({currentWindow: true});
+	return browser.tabs.query({ currentWindow: true });
 }
 
 function switchTab(tab) {
-	if (tab)
-	{
+	if (tab) {
 		browser.tabs.update(tab.id, { active: true });
 		window.close();
 	}
 }
 
 function onCreated(tab) {
-  switchTab(tab);
+	switchTab(tab);
 }
 
 function onError(error) {
-  console.log(`Error: ${error}`);
+	console.log(`Error: ${error}`);
 }
 
 function injectPage(type, file, title) {
 	var tabs = getCurrentWindowTabs().then((tabs) => {
 		var openTab = null;
-		if(tabs) {
+		if (tabs) {
 			for (let tab of tabs) {
 				if (tab.title == title)
 					openTab = tab;
 			}
 		}
-		
-		if(!openTab) {
+
+		if (!openTab) {
 			let creating = browser.tabs.create({
-			"url": file
+				"url": file
 			});
 			creating.then(onCreated, onError);
 		}
@@ -57,7 +56,7 @@ function listenForClicks() {
 		var selected = e.target.id;
 		var closeWindow = false;
 
-		switch(selected) {
+		switch (selected) {
 			case "gtfo_grabber":
 				sendTabMessage("gtfo_grabber", null);
 				break;
@@ -68,11 +67,11 @@ function listenForClicks() {
 				sendTabMessage("gtfo_rightclick", null);
 				break;
 			case "gtfo_settings":
-				injectPage("url","../html/settings.html","GTFO Settings");
+				injectPage("url", "../html/settings.html", "GTFO Settings");
 				break;
-			
+
 		}
-  });
+	});
 }
 
 listenForClicks();
