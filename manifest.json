@@ -1,0 +1,38 @@
+{
+
+  "manifest_version": 2,
+  "name": "GTFO",
+  "version": "0.05b",
+
+  "description": "A collection of my personal tools which contain atm: URL Grabber (grabs all the links from a page and displays them at the bottom), Unhider (unhides elements and shows invisible elements)",
+  "icons": {
+    "96": "icons/GTFO.png"
+  },
+
+  "permissions": [
+      "tabs",
+      "<all_urls>",
+	  "storage"
+  ],
+
+  "browser_action": {
+    "default_icon": {
+     "48" : "icons/GTFO.png"
+    },
+    "default_title": "GTFO",
+    "default_popup": "popup/popup.html"
+  },
+  
+  "browser_specific_settings": {
+	  "gecko": {
+	  "id": "{379f97b0-a00f-4e06-a310-5756e5ac19d8}"
+	}
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["js/content.js"]
+    }
+  ]
+}
