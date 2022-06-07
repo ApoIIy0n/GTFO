@@ -4,7 +4,7 @@
   "name": "GTFO",
   "version": "0.05b",
 
-  "description": "A collection of my personal tools which contain atm: URL Grabber (grabs all the links from a page and displays them at the bottom), Unhider (unhides elements and shows invisible elements)",
+  "description": "A collection of my personal tools which contains: URL Grabber (grabs all the links from a page and displays them at a new tab in the current page), Unhider (unhides elements and shows invisible elements), RightClick (makes sure rightclick works on a page)",
   "icons": {
     "96": "icons/GTFO.png"
   },

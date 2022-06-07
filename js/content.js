@@ -3,6 +3,7 @@ const randomize = (n, r='') => {
 	return r;
 };
 
+// set to a fixed string for now because of CSS styling
 var randomString = 'GTFO-BODY';//randomize(Math.floor(Math.random() * (8 - 2 + 1) + 2));
 
 function removeClassFromElements(className) {
