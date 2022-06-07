@@ -35,9 +35,12 @@ function switchTab(tabName, elmnt) {
 	}
 }
 
-function getPageButton(name) {
+function getPageButton(name, enabled, className) {
 	var pageButton = document.createElement('button');
-	pageButton.classList.add('gtfo-tab-button');
+	pageButton.id = `${className}-${name}`;
+	if (!enabled)
+		pageButton.setAttribute('disabled', true);
+	pageButton.classList.add(className);
 	pageButton.innerHTML = name;
 	pageButton.onclick = function () { switchTab(name, this); }
 
@@ -78,14 +81,12 @@ function gtfo_Grabber() {
 		var newBody = document.createElement('body');
 		newBody.setAttribute('id', randomString);
 
-		var newTopDiv = document.createElement('div');
-		newTopDiv.setAttribute('style', 'background-color: #1a1a1a');
-
-		newTopDiv.appendChild(getPageButton('Page'));
-		newTopDiv.appendChild(getPageButton('Grabber'));
-		newBody.appendChild(newTopDiv);
-
-		newBody.appendChild(getPageDiv('Page', null, document.body.innerHTML));
+		// topbar
+		var topBarDiv = document.createElement('div');
+		topBarDiv.classList.add('gtfo-grabber-topbar');
+		topBarDiv.appendChild(getPageButton('Page', true, 'gtfo-tab-button'));
+		topBarDiv.appendChild(getPageButton('Grabber', true, 'gtfo-tab-button'));
+		newBody.appendChild(topBarDiv);
 
 		// extract urls from object list to normal list
 		const unfilteredLinks = [];
@@ -98,6 +99,26 @@ function gtfo_Grabber() {
 		pageLinks.sort();
 
 		var grabberDiv = getPageDiv('Grabber', 'height: 100%; width: 100%; overflow: hidden; overflow-y:', null);
+
+		// toolbar
+		var toolBarDiv = document.createElement('div');
+		toolBarDiv.classList.add('gtfo-grabber-toolbar');
+		toolBarDiv.appendChild(getPageButton('Save', false, 'gtfo-topbar-button'));
+		toolBarDiv.appendChild(getPageButton('Copy', false, 'gtfo-topbar-button'));
+
+		var selectinput = document.createElement('input');
+		selectinput.classList.add('gtfo-grabber-selectall');
+		selectinput.type = 'checkbox';
+		selectinput.id = `gtfo-grabber-selectall`;
+		toolBarDiv.appendChild(selectinput);
+
+		var selectallLabel = document.createElement('label');
+		selectallLabel.classList.add('gtfo-selectall-label');
+		selectallLabel.id = `gtfo-selectall-label`;
+		selectallLabel.textContent = 'Select all';
+		toolBarDiv.appendChild(selectallLabel);
+
+		grabberDiv.appendChild(toolBarDiv);
 
 		var urlColorClass;
 		const totalDigits = pageLinks.length.toString().length;
@@ -132,7 +153,14 @@ function gtfo_Grabber() {
 			grabberDiv.appendChild(elemDiv);
 		}
 
-		newTopDiv.appendChild(grabberDiv);
+		// urlspage
+		var urlsDiv = document.createElement('div');
+		urlsDiv.classList.add('gtfo-url-div');
+		urlsDiv.appendChild(grabberDiv);
+		newBody.appendChild(urlsDiv);
+
+		// add old body
+		newBody.appendChild(getPageDiv('Page', null, document.body.innerHTML));
 
 		document.body = newBody;
 	}
@@ -185,4 +213,6 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
 			gtfo_RightClick();
 			break;
 	}
+
+	return Promise.resolve(true);
 });
