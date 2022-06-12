@@ -57,7 +57,6 @@ function injectPage(type, file, title) {
 function listenForClicks() {
 	document.addEventListener("click", (e) => {
 		var selected = e.target.id;
-		var closeWindow = false;
 
 		switch (selected) {
 			case "gtfo_grabber":
