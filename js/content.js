@@ -43,7 +43,7 @@ function getElement(elmnt, elmntid, classlist, textcontent) {
 		returnElmnt.classList = classlist;
 	if (textcontent)
 		returnElmnt.textContent = textcontent;
-	
+
 	return returnElmnt;
 }
 
@@ -100,9 +100,8 @@ function gtfo_Grabber_GetSelectedUrls() {
 
 	for (let checkBox of checkBoxes) {
 		if (checkBox.checked) {
-			for (childNode of checkBox.parentNode.childNodes)
-			{
-				if(childNode.id.includes("urllabel") && childNode.children.length > 0) {	
+			for (childNode of checkBox.parentNode.childNodes) {
+				if (childNode.id.includes("urllabel") && childNode.children.length > 0) {
 					selectedItems.push(childNode.children[0].href)
 					break;
 				}
@@ -123,7 +122,7 @@ function gtfo_Grabber_Save() {
 	var selectedItems = gtfo_Grabber_GetSelectedUrls();
 
 	let downloadLink = document.createElement('a');
-	downloadLink.href = "data:application/octet-stream,"+encodeURIComponent(selectedItems.join('\r\n'));
+	downloadLink.href = "data:application/octet-stream," + encodeURIComponent(selectedItems.join('\r\n'));
 	downloadLink.download = `urls_${new Date().getTime()}.txt`;
 	downloadLink.click();
 	document.removeelem
@@ -155,11 +154,11 @@ function gtfo_Grabber() {
 		var toolBarDiv = getElement('div', null, 'gtfo-grabber-toolbar', null);
 
 		var toolbarSaveButton = getElement('button', null, 'gtfo-topbar-button', 'Save');
-		toolbarSaveButton.onclick = function() { gtfo_Grabber_Save(); }
+		toolbarSaveButton.onclick = function () { gtfo_Grabber_Save(); }
 		toolBarDiv.appendChild(toolbarSaveButton);
 
 		var toolbarCopyButton = getElement('button', null, 'gtfo-topbar-button', 'Copy');
-		toolbarCopyButton.onclick = function() { gtfo_Grabber_Copy(); }
+		toolbarCopyButton.onclick = function () { gtfo_Grabber_Copy(); }
 		toolBarDiv.appendChild(toolbarCopyButton);
 
 		var selectinput = getElement('input', `gtfo-grabber-selectall`, 'gtfo-grabber-selectall', null);
