@@ -35,22 +35,31 @@ function switchTab(tabName, elmnt) {
 	}
 }
 
+function getElement(elmnt, elmntid, classlist, textcontent) {
+	var returnElmnt = document.createElement(elmnt);
+	if (elmntid)
+		returnElmnt.id = elmntid;
+	if (classlist)
+		returnElmnt.classList = classlist;
+	if (textcontent)
+		returnElmnt.textContent = textcontent;
+	
+	return returnElmnt;
+}
+
 function getPageButton(name, enabled, className) {
-	var pageButton = document.createElement('button');
-	pageButton.id = `${className}-${name}`;
+	var pageButton = getElement('button', `${className}-${name}`, className, name);
+
 	if (!enabled)
 		pageButton.setAttribute('disabled', true);
-	pageButton.classList.add(className);
-	pageButton.textContent = name;
+
 	pageButton.onclick = function () { switchTab(name, this); }
 
 	return pageButton;
 }
 
 function getPageDiv(name, style, innerhtml) {
-	var pageDiv = document.createElement('div');
-	pageDiv.setAttribute('id', name);
-	pageDiv.classList.add('tabcontent');
+	var pageDiv = getElement('div', name, 'tabcontent', null);
 
 	if (style)
 		pageDiv.setAttribute('style', style);
@@ -122,12 +131,10 @@ function gtfo_Grabber_Save() {
 
 function gtfo_Grabber() {
 	if (!document.getElementById(randomString)) {
-		var newBody = document.createElement('body');
-		newBody.setAttribute('id', randomString);
+		var newBody = getElement('body', randomString, null, null);
 
 		// topbar
-		var topBarDiv = document.createElement('div');
-		topBarDiv.classList.add('gtfo-grabber-topbar');
+		var topBarDiv = getElement('div', null, 'gtfo-grabber-topbar', null);
 		topBarDiv.appendChild(getPageButton('Page', true, 'gtfo-tab-button'));
 		topBarDiv.appendChild(getPageButton('Grabber', true, 'gtfo-tab-button'));
 		newBody.appendChild(topBarDiv);
@@ -145,32 +152,22 @@ function gtfo_Grabber() {
 		var grabberDiv = getPageDiv('Grabber', 'height: 100%; width: 100%; overflow: hidden; overflow-y:', null);
 
 		// toolbar
-		var toolBarDiv = document.createElement('div');
-		toolBarDiv.classList.add('gtfo-grabber-toolbar');
+		var toolBarDiv = getElement('div', null, 'gtfo-grabber-toolbar', null);
 
-		var toolbarSaveButton = document.createElement('button');
-		toolbarSaveButton.classList.add('gtfo-topbar-button')
-		toolbarSaveButton.innerHTML = 'Save';
+		var toolbarSaveButton = getElement('button', null, 'gtfo-topbar-button', 'Save');
 		toolbarSaveButton.onclick = function() { gtfo_Grabber_Save(); }
 		toolBarDiv.appendChild(toolbarSaveButton);
 
-		var toolbarCopyButton = document.createElement('button');
-		toolbarCopyButton.classList.add('gtfo-topbar-button')
-		toolbarCopyButton.innerHTML = 'Copy';
+		var toolbarCopyButton = getElement('button', null, 'gtfo-topbar-button', 'Copy');
 		toolbarCopyButton.onclick = function() { gtfo_Grabber_Copy(); }
 		toolBarDiv.appendChild(toolbarCopyButton);
 
-		var selectinput = document.createElement('input');
-		selectinput.classList.add('gtfo-grabber-selectall');
-		selectinput.onclick = function () { gtfo_Grabber_SelectAll(this); }
+		var selectinput = getElement('input', `gtfo-grabber-selectall`, 'gtfo-grabber-selectall', null);
 		selectinput.type = 'checkbox';
-		selectinput.id = `gtfo-grabber-selectall`;
+		selectinput.onclick = function () { gtfo_Grabber_SelectAll(this); }
 		toolBarDiv.appendChild(selectinput);
 
-		var selectallLabel = document.createElement('label');
-		selectallLabel.classList.add('gtfo-selectall-label');
-		selectallLabel.id = `gtfo-selectall-label`;
-		selectallLabel.textContent = 'Select all';
+		var selectallLabel = getElement('label', `gtfo-selectall-label`, 'gtfo-selectall-label', 'Select all');
 		toolBarDiv.appendChild(selectallLabel);
 
 		grabberDiv.appendChild(toolBarDiv);
@@ -181,36 +178,26 @@ function gtfo_Grabber() {
 		for (let i = 0; i < pageLinks.length; i++) {
 			urlColorClass = ((i + 1) % 2) ? 'gtfo-grabber-url-even' : 'gtfo-grabber-url-odd';
 
-			var a = document.createElement('a');
-			a.classList.add('gtfo-grabber-url');
-			a.href = pageLinks[i];
+			var elemDiv = getElement('div', `gtfo-urldiv-${i + 1}`, urlColorClass, null);
+
+			var input = getElement('input', `gtfo-input-${i + 1}`, 'gtfo-tab-input', null);
+			input.type = 'checkbox';
+			elemDiv.appendChild(input);
+
+			var urlLabel = getElement('label', `gtfo-urllabel-${i + 1}`, 'gtfo-url-label', null);
+			urlLabel.onclick = function () { toggleInput('gtfo-input-*', this); }
 
 			var zeroString = '0'.repeat(totalDigits - (i + 1).toString().length);
-			a.innerText = `${zeroString}${(i + 1)}: ${pageLinks[i]}`;
+			var urlLink = getElement('a', null, 'gtfo-grabber-url', `${zeroString}${(i + 1)}: ${pageLinks[i]}`);
+			urlLink.href = pageLinks[i];
+			urlLabel.appendChild(urlLink);
 
-			var urlLabel = document.createElement('label');
-			urlLabel.classList.add('gtfo-url-label');
-			urlLabel.id = `gtfo-urllabel-${i + 1}`;
-			urlLabel.onclick = function () { toggleInput('gtfo-input-*', this); }
-			urlLabel.appendChild(a);
-
-			var input = document.createElement('input');
-			input.classList.add('gtfo-tab-input');
-			input.type = 'checkbox';
-			input.id = `gtfo-input-${i + 1}`;
-
-			var elemDiv = document.createElement('div');
-			elemDiv.classList.add(urlColorClass);
-			elemDiv.id = `gtfo-urldiv-${i + 1}`;
-			elemDiv.appendChild(input);
 			elemDiv.appendChild(urlLabel);
-
 			grabberDiv.appendChild(elemDiv);
 		}
 
 		// urlspage
-		var urlsDiv = document.createElement('div');
-		urlsDiv.classList.add('gtfo-url-div');
+		var urlsDiv = getElement('div', null, 'gtfo-url-div', null);
 		urlsDiv.appendChild(grabberDiv);
 		newBody.appendChild(urlsDiv);
 
