@@ -76,6 +76,50 @@ function toggleInput(name, elmnt) {
 	}
 }
 
+function gtfo_Grabber_SelectAll(elmnt) {
+	var checkBoxes = document.getElementsByClassName('gtfo-tab-input');
+
+	for (let checkBox of checkBoxes) {
+		checkBox.checked = elmnt.checked;
+	}
+}
+
+function gtfo_Grabber_GetSelectedUrls() {
+	var checkBoxes = document.getElementsByClassName('gtfo-tab-input');
+
+	var selectedItems = [];
+
+	for (let checkBox of checkBoxes) {
+		if (checkBox.checked) {
+			for (childNode of checkBox.parentNode.childNodes)
+			{
+				if(childNode.id.includes("urllabel") && childNode.children.length > 0) {	
+					selectedItems.push(childNode.children[0].href)
+					break;
+				}
+			}
+		}
+	}
+
+	return selectedItems;
+}
+
+function gtfo_Grabber_Copy() {
+	var selectedItems = gtfo_Grabber_GetSelectedUrls();
+
+	navigator.clipboard.writeText(selectedItems.join('\r\n'));
+}
+
+function gtfo_Grabber_Save() {
+	var selectedItems = gtfo_Grabber_GetSelectedUrls();
+
+	let downloadLink = document.createElement('a');
+	downloadLink.href = "data:application/octet-stream,"+encodeURIComponent(selectedItems.join('\r\n'));
+	downloadLink.download = `urls_${new Date().getTime()}.txt`;
+	downloadLink.click();
+	document.removeelem
+}
+
 function gtfo_Grabber() {
 	if (!document.getElementById(randomString)) {
 		var newBody = document.createElement('body');
@@ -103,11 +147,22 @@ function gtfo_Grabber() {
 		// toolbar
 		var toolBarDiv = document.createElement('div');
 		toolBarDiv.classList.add('gtfo-grabber-toolbar');
-		toolBarDiv.appendChild(getPageButton('Save', false, 'gtfo-topbar-button'));
-		toolBarDiv.appendChild(getPageButton('Copy', false, 'gtfo-topbar-button'));
+
+		var toolbarSaveButton = document.createElement('button');
+		toolbarSaveButton.classList.add('gtfo-topbar-button')
+		toolbarSaveButton.innerHTML = 'Save';
+		toolbarSaveButton.onclick = function() { gtfo_Grabber_Save(); }
+		toolBarDiv.appendChild(toolbarSaveButton);
+
+		var toolbarCopyButton = document.createElement('button');
+		toolbarCopyButton.classList.add('gtfo-topbar-button')
+		toolbarCopyButton.innerHTML = 'Copy';
+		toolbarCopyButton.onclick = function() { gtfo_Grabber_Copy(); }
+		toolBarDiv.appendChild(toolbarCopyButton);
 
 		var selectinput = document.createElement('input');
 		selectinput.classList.add('gtfo-grabber-selectall');
+		selectinput.onclick = function () { gtfo_Grabber_SelectAll(this); }
 		selectinput.type = 'checkbox';
 		selectinput.id = `gtfo-grabber-selectall`;
 		toolBarDiv.appendChild(selectinput);
