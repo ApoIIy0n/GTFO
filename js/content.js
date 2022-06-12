@@ -41,7 +41,7 @@ function getPageButton(name, enabled, className) {
 	if (!enabled)
 		pageButton.setAttribute('disabled', true);
 	pageButton.classList.add(className);
-	pageButton.innerHTML = name;
+	pageButton.textContent = name;
 	pageButton.onclick = function () { switchTab(name, this); }
 
 	return pageButton;
