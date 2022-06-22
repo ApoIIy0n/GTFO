@@ -133,7 +133,7 @@ function gtfo_Grabber() {
 		var newBody = getElement('body', randomString, null, null);
 
 		// topbar
-		var topBarDiv = getElement('div', null, 'gtfo-grabber-topbar', null);
+		var topBarDiv = getElement('div', 'gtfo-grabber-topbar', null, null);
 		topBarDiv.appendChild(getPageButton('Page', true, 'gtfo-tab-button'));
 		topBarDiv.appendChild(getPageButton('Grabber', true, 'gtfo-tab-button'));
 		newBody.appendChild(topBarDiv);
@@ -151,17 +151,17 @@ function gtfo_Grabber() {
 		var grabberDiv = getPageDiv('Grabber', 'height: 100%; width: 100%; overflow: hidden; overflow-y:', null);
 
 		// toolbar
-		var toolBarDiv = getElement('div', null, 'gtfo-grabber-toolbar', null);
+		var toolBarDiv = getElement('div', 'gtfo-grabber-toolbar', null, null);
 
-		var toolbarSaveButton = getElement('button', null, 'gtfo-topbar-button', 'Save');
+		var toolbarSaveButton = getElement('button', 'gtfo-topbar-button-Save', null, 'Save');
 		toolbarSaveButton.onclick = function () { gtfo_Grabber_Save(); }
 		toolBarDiv.appendChild(toolbarSaveButton);
 
-		var toolbarCopyButton = getElement('button', null, 'gtfo-topbar-button', 'Copy');
+		var toolbarCopyButton = getElement('button', 'gtfo-topbar-button-Copy', null, 'Copy');
 		toolbarCopyButton.onclick = function () { gtfo_Grabber_Copy(); }
 		toolBarDiv.appendChild(toolbarCopyButton);
 
-		var selectinput = getElement('input', `gtfo-grabber-selectall`, 'gtfo-grabber-selectall', null);
+		var selectinput = getElement('input', `gtfo-grabber-selectall`, null, null);
 		selectinput.type = 'checkbox';
 		selectinput.onclick = function () { gtfo_Grabber_SelectAll(this); }
 		toolBarDiv.appendChild(selectinput);
@@ -187,7 +187,7 @@ function gtfo_Grabber() {
 			urlLabel.onclick = function () { toggleInput('gtfo-input-*', this); }
 
 			var zeroString = '0'.repeat(totalDigits - (i + 1).toString().length);
-			var urlLink = getElement('a', null, 'gtfo-grabber-url', `${zeroString}${(i + 1)}: ${pageLinks[i]}`);
+			var urlLink = getElement('a', 'gtfo-grabber-url', null, `${zeroString}${(i + 1)}: ${pageLinks[i]}`);
 			urlLink.href = pageLinks[i];
 			urlLabel.appendChild(urlLink);
 
@@ -196,7 +196,7 @@ function gtfo_Grabber() {
 		}
 
 		// urlspage
-		var urlsDiv = getElement('div', null, 'gtfo-url-div', null);
+		var urlsDiv = getElement('div', 'gtfo-url-div', null, null);
 		urlsDiv.appendChild(grabberDiv);
 		newBody.appendChild(urlsDiv);
 
