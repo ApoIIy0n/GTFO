@@ -3,6 +3,7 @@
 	margin-left: 0px;
 	margin-top: 0px;
 	padding: 0px;
+	height: 100vh;
 }
 
 #gtfo-grabber-topbar {
@@ -110,7 +111,7 @@
 	background: transparent;
 	border: 0.1rem solid currentColor;
 	padding: 0.4rem 1rem;
-	font-size: .75rem;
+	font-size: 13px;
 	color: white;
 	position: relative;
 	transition: color 0.3s;
@@ -121,6 +122,7 @@
 
 [id^="gtfo-topbar-button-"] {
 	float: right;
+	font-size: 12.8px;
 	padding: 0.24rem .8rem;
 }
 
