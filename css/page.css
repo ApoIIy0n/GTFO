@@ -117,13 +117,14 @@
 	transition: color 0.3s;
 	z-index: 1;
 	margin-right: 1px;
-	line-height: normal;
+	line-height: 20px;
 }
 
 [id^="gtfo-topbar-button-"] {
 	float: right;
 	font-size: 12.8px;
 	padding: 0.24rem .8rem;
+	line-height: 18px;
 }
 
 [id^="gtfo-tab-button-"]:hover,
