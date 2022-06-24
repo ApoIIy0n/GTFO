@@ -32,7 +32,7 @@ function switchTab(tabName, elmnt) {
 	var tabcontent = document.getElementsByClassName("tabcontent");
 
 	document.body.style.backgroundColor = (tabName == 'Page') ? originalBackgroundColor : '#313131';
-	
+
 	if(tabName == 'Page') {
 		document.body.style.backgroundColor = originalBackgroundColor;
 	}
@@ -136,7 +136,7 @@ function gtfo_Grabber_Save() {
 
 function gtfo_Grabber() {
 	if (!document.getElementById(randomString)) {
-		originalBackgroundColor = document.body.backgroundColor ? document.body.backgroundColor : '#FFFFFF';
+		originalBackgroundColor = window.getComputedStyle(document.body, null).backgroundColor;
 
 		var newBody = getElement('body', randomString, null, null);
 
