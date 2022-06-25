@@ -106,12 +106,13 @@
 [id^="gtfo-tab-button-"],
 [id^="gtfo-topbar-button-"] {
 	font-family: 'Consolas', consolas;
-	letter-spacing: 0.1rem;
+	letter-spacing: 1px;
 	cursor: pointer;
 	background: transparent;
-	border: 0.1rem solid currentColor;
-	padding: 0.24rem 1rem;
-	font-size: 13px;
+	border: 1px solid currentColor;
+	border-radius: 0px;
+	padding: 3.5px 20px;
+	font-size: 12px !important;
 	color: white;
 	position: relative;
 	transition: color 0.3s;
@@ -122,14 +123,15 @@
 
 [id^="gtfo-topbar-button-"] {
 	float: right;
-	font-size: 12.8px;
-	padding: 0.15rem .8rem;
+	font-size: 12px;
+	padding: 2.5px 10px;
 	line-height: 18px;
 }
 
 [id^="gtfo-tab-button-"]:hover,
 [id^="gtfo-topbar-button-"]:hover {
 	color: red;
+	border-color: red;
 }
 
 [id^="gtfo-tab-button-"]:hover::before,
@@ -172,11 +174,48 @@
 	background-color: #1a1a1a;
 }
 
-[id^="gtfo-tab-button-"]::after,
+[id^="gtfo-topbar-button-"]::after,
 [id^="gtfo-tab-button-"]::after {
 	height: calc(100% - 1rem);
 	width: calc(100% + 0.2rem);
 	left: -0.1rem;
 	top: 50%;
 	transform: translateY(-50%);
+}
+
+#gtfo-comments-treeview-ul {
+	list-style-type: none;
+	color:white;
+	font-family: 'Consolas', consolas;
+	font-size: 12px;
+}
+
+#gtfo-comments-treeview-ul {
+	margin: 0;
+	padding: 0;
+}
+
+.gtfo-comments-treeview-nested {
+	display: block !important;
+}
+
+.gtfo-comments-treeview-active {
+	display: none !important;
+}
+
+.gtfo-comments-treeview-caret {
+	cursor: pointer !important;
+	user-select: none !important;
+}
+
+.gtfo-comments-treeview-caret::before {
+	content: "\25B6";
+	color: white;
+	display: inline-block;
+	transform: rotate(90deg);
+	margin-right: 6px;
+}
+
+.gtfo-comments-treeview-caret-side::before {
+	transform: rotate(0deg) !important;
 }

@@ -134,6 +134,41 @@ function gtfo_Grabber_Save() {
 	document.removeelem
 }
 
+function gtfo_GetCommentsDiv() {
+
+	// html
+	htmlComments = [];
+	nodeIterator = document.createTreeWalker(document, NodeFilter.SHOW_COMMENT, null, null);
+
+	var commentsTreeViewHtmlItems = getElement('ul', 'gtfo-comments-treeview-nested', 'gtfo-comments-treeview-nested', null);
+
+	while (comment = nodeIterator.nextNode()) {
+		var commentsTreeViewHtmlItem = getElement('li', 'gtfo-comments-treeview-li', null, null);
+		commentsTreeViewHtmlItem.textContent = comment.textContent;
+		commentsTreeViewHtmlItems.appendChild(commentsTreeViewHtmlItem);
+		console.log(comment.textContent);
+	}
+
+	var commentsTreeViewSpan = getElement('span', 'gtfo-comments-treeview-span', 'gtfo-comments-treeview-caret', null);
+	commentsTreeViewSpan.textContent = 'HTML';
+	commentsTreeViewSpan.onclick = function () {
+		this.classList.toggle('gtfo-comments-treeview-caret-side');
+		this.parentElement.querySelector('.gtfo-comments-treeview-nested').classList.toggle('gtfo-comments-treeview-active');
+	}
+
+	var commentsTreeViewLi = getElement('li', 'gtfo-comments-treeview-li', null, null);
+	commentsTreeViewLi.appendChild(commentsTreeViewSpan);
+	commentsTreeViewLi.appendChild(commentsTreeViewHtmlItems);
+
+	var commentsTreeView = getElement('ul', 'gtfo-comments-treeview-ul', null, null);
+	commentsTreeView.appendChild(commentsTreeViewLi);
+
+	var commentsTabDiv = getPageDiv('Comments', null, null);
+	commentsTabDiv.appendChild(commentsTreeView);
+
+	return commentsTabDiv;
+}
+
 function gtfo_GetUrlsDiv() {
 	// extract urls from object list to normal list
 	const unfilteredLinks = [];
@@ -213,6 +248,9 @@ function gtfo_Grabber() {
 
 		// add urls div
 		newBody.appendChild(gtfo_GetUrlsDiv());
+
+		// add comments div
+		newBody.appendChild(gtfo_GetCommentsDiv());
 
 		// add old body
 		newBody.appendChild(getPageDiv('Page', null, document.body.innerHTML));
