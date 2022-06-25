@@ -147,6 +147,11 @@
 [id^="gtfo-tab-button-"]:active,
 [id^="gtfo-topbar-button-"]:active {
 	border-width: 0.05rem;
+	background-color: #1a1a1a;
+}
+
+[id^="gtfo-topbar-button-"]:active {
+	background-color: #313131;
 }
 
 [id^="gtfo-tab-button-"]::before,
