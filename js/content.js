@@ -33,7 +33,7 @@ function switchTab(tabName, elmnt) {
 
 	document.body.style.backgroundColor = (tabName == 'Page') ? originalBackgroundColor : '#313131';
 
-	if(tabName == 'Page') {
+	if (tabName == 'Page') {
 		document.body.style.backgroundColor = originalBackgroundColor;
 	}
 
@@ -134,6 +134,70 @@ function gtfo_Grabber_Save() {
 	document.removeelem
 }
 
+function gtfo_GetUrlsDiv() {
+	// extract urls from object list to normal list
+	const unfilteredLinks = [];
+	for (let linkobject of document.links) {
+		unfilteredLinks.push(decodeURI(linkobject.href));
+	}
+
+	// this removes the duplicates
+	const pageLinks = [...new Set(unfilteredLinks)];
+	pageLinks.sort();
+
+	var urlsTabDiv = getPageDiv('Urls', 'height: 100%; width: 100%; overflow: hidden; overflow-y:', null);
+
+	// toolbar
+	var toolBarDiv = getElement('div', 'gtfo-urls-toolbar', null, null);
+
+	var toolbarSaveButton = getElement('button', 'gtfo-topbar-button-Save', null, 'Save');
+	toolbarSaveButton.onclick = function () { gtfo_Grabber_Save(); }
+	toolBarDiv.appendChild(toolbarSaveButton);
+
+	var toolbarCopyButton = getElement('button', 'gtfo-topbar-button-Copy', null, 'Copy');
+	toolbarCopyButton.onclick = function () { gtfo_Grabber_Copy(); }
+	toolBarDiv.appendChild(toolbarCopyButton);
+
+	var selectinput = getElement('input', `gtfo-urls-selectall`, null, null);
+	selectinput.type = 'checkbox';
+	selectinput.onclick = function () { gtfo_Grabber_SelectAll(this); }
+	toolBarDiv.appendChild(selectinput);
+
+	var selectallLabel = getElement('label', `gtfo-selectall-label`, 'gtfo-selectall-label', 'Select all');
+	toolBarDiv.appendChild(selectallLabel);
+
+	urlsTabDiv.appendChild(toolBarDiv);
+
+	var urlColorClass;
+	const totalDigits = pageLinks.length.toString().length;
+
+	for (let i = 0; i < pageLinks.length; i++) {
+		urlColorClass = ((i + 1) % 2) ? 'gtfo-grabber-url-even' : 'gtfo-grabber-url-odd';
+
+		var elemDiv = getElement('div', `gtfo-urldiv-${i + 1}`, urlColorClass, null);
+
+		var input = getElement('input', `gtfo-input-${i + 1}`, 'gtfo-tab-input', null);
+		input.type = 'checkbox';
+		elemDiv.appendChild(input);
+
+		var urlLabel = getElement('label', `gtfo-urllabel-${i + 1}`, 'gtfo-url-label', null);
+		urlLabel.onclick = function () { toggleInput('gtfo-input-*', this); }
+
+		var zeroString = '0'.repeat(totalDigits - (i + 1).toString().length);
+		var urlLink = getElement('a', 'gtfo-grabber-url', null, `${zeroString}${(i + 1)}: ${pageLinks[i]}`);
+		urlLink.href = pageLinks[i];
+		urlLabel.appendChild(urlLink);
+
+		elemDiv.appendChild(urlLabel);
+		urlsTabDiv.appendChild(elemDiv);
+	}
+
+	// urlspage
+	var urlsDiv = getElement('div', 'gtfo-url-div', null, null);
+	urlsDiv.appendChild(urlsTabDiv);
+	return urlsDiv;
+}
+
 function gtfo_Grabber() {
 	if (!document.getElementById(randomString)) {
 		originalBackgroundColor = window.getComputedStyle(document.body, null).backgroundColor;
@@ -147,67 +211,8 @@ function gtfo_Grabber() {
 		topBarDiv.appendChild(getPageButton('Comments', true, 'gtfo-tab-button'));
 		newBody.appendChild(topBarDiv);
 
-		// extract urls from object list to normal list
-		const unfilteredLinks = [];
-		for (let linkobject of document.links) {
-			unfilteredLinks.push(decodeURI(linkobject.href));
-		}
-
-		// this removes the duplicates
-		const pageLinks = [...new Set(unfilteredLinks)];
-		pageLinks.sort();
-
-		var urlsTabDiv = getPageDiv('Urls', 'height: 100%; width: 100%; overflow: hidden; overflow-y:', null);
-
-		// toolbar
-		var toolBarDiv = getElement('div', 'gtfo-urls-toolbar', null, null);
-
-		var toolbarSaveButton = getElement('button', 'gtfo-topbar-button-Save', null, 'Save');
-		toolbarSaveButton.onclick = function () { gtfo_Grabber_Save(); }
-		toolBarDiv.appendChild(toolbarSaveButton);
-
-		var toolbarCopyButton = getElement('button', 'gtfo-topbar-button-Copy', null, 'Copy');
-		toolbarCopyButton.onclick = function () { gtfo_Grabber_Copy(); }
-		toolBarDiv.appendChild(toolbarCopyButton);
-
-		var selectinput = getElement('input', `gtfo-urls-selectall`, null, null);
-		selectinput.type = 'checkbox';
-		selectinput.onclick = function () { gtfo_Grabber_SelectAll(this); }
-		toolBarDiv.appendChild(selectinput);
-
-		var selectallLabel = getElement('label', `gtfo-selectall-label`, 'gtfo-selectall-label', 'Select all');
-		toolBarDiv.appendChild(selectallLabel);
-
-		urlsTabDiv.appendChild(toolBarDiv);
-
-		var urlColorClass;
-		const totalDigits = pageLinks.length.toString().length;
-
-		for (let i = 0; i < pageLinks.length; i++) {
-			urlColorClass = ((i + 1) % 2) ? 'gtfo-grabber-url-even' : 'gtfo-grabber-url-odd';
-
-			var elemDiv = getElement('div', `gtfo-urldiv-${i + 1}`, urlColorClass, null);
-
-			var input = getElement('input', `gtfo-input-${i + 1}`, 'gtfo-tab-input', null);
-			input.type = 'checkbox';
-			elemDiv.appendChild(input);
-
-			var urlLabel = getElement('label', `gtfo-urllabel-${i + 1}`, 'gtfo-url-label', null);
-			urlLabel.onclick = function () { toggleInput('gtfo-input-*', this); }
-
-			var zeroString = '0'.repeat(totalDigits - (i + 1).toString().length);
-			var urlLink = getElement('a', 'gtfo-grabber-url', null, `${zeroString}${(i + 1)}: ${pageLinks[i]}`);
-			urlLink.href = pageLinks[i];
-			urlLabel.appendChild(urlLink);
-
-			elemDiv.appendChild(urlLabel);
-			urlsTabDiv.appendChild(elemDiv);
-		}
-
-		// urlspage
-		var urlsDiv = getElement('div', 'gtfo-url-div', null, null);
-		urlsDiv.appendChild(urlsTabDiv);
-		newBody.appendChild(urlsDiv);
+		// add urls div
+		newBody.appendChild(gtfo_GetUrlsDiv());
 
 		// add old body
 		newBody.appendChild(getPageDiv('Page', null, document.body.innerHTML));
