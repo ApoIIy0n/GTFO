@@ -143,7 +143,7 @@ function gtfo_Grabber() {
 		// topbar
 		var topBarDiv = getElement('div', 'gtfo-grabber-topbar', null, null);
 		topBarDiv.appendChild(getPageButton('Page', true, 'gtfo-tab-button'));
-		topBarDiv.appendChild(getPageButton('Grabber', true, 'gtfo-tab-button'));
+		topBarDiv.appendChild(getPageButton('Urls', true, 'gtfo-tab-button'));
 		topBarDiv.appendChild(getPageButton('Comments', true, 'gtfo-tab-button'));
 		newBody.appendChild(topBarDiv);
 
@@ -157,10 +157,10 @@ function gtfo_Grabber() {
 		const pageLinks = [...new Set(unfilteredLinks)];
 		pageLinks.sort();
 
-		var grabberDiv = getPageDiv('Grabber', 'height: 100%; width: 100%; overflow: hidden; overflow-y:', null);
+		var urlsTabDiv = getPageDiv('Urls', 'height: 100%; width: 100%; overflow: hidden; overflow-y:', null);
 
 		// toolbar
-		var toolBarDiv = getElement('div', 'gtfo-grabber-toolbar', null, null);
+		var toolBarDiv = getElement('div', 'gtfo-urls-toolbar', null, null);
 
 		var toolbarSaveButton = getElement('button', 'gtfo-topbar-button-Save', null, 'Save');
 		toolbarSaveButton.onclick = function () { gtfo_Grabber_Save(); }
@@ -170,7 +170,7 @@ function gtfo_Grabber() {
 		toolbarCopyButton.onclick = function () { gtfo_Grabber_Copy(); }
 		toolBarDiv.appendChild(toolbarCopyButton);
 
-		var selectinput = getElement('input', `gtfo-grabber-selectall`, null, null);
+		var selectinput = getElement('input', `gtfo-urls-selectall`, null, null);
 		selectinput.type = 'checkbox';
 		selectinput.onclick = function () { gtfo_Grabber_SelectAll(this); }
 		toolBarDiv.appendChild(selectinput);
@@ -178,7 +178,7 @@ function gtfo_Grabber() {
 		var selectallLabel = getElement('label', `gtfo-selectall-label`, 'gtfo-selectall-label', 'Select all');
 		toolBarDiv.appendChild(selectallLabel);
 
-		grabberDiv.appendChild(toolBarDiv);
+		urlsTabDiv.appendChild(toolBarDiv);
 
 		var urlColorClass;
 		const totalDigits = pageLinks.length.toString().length;
@@ -201,12 +201,12 @@ function gtfo_Grabber() {
 			urlLabel.appendChild(urlLink);
 
 			elemDiv.appendChild(urlLabel);
-			grabberDiv.appendChild(elemDiv);
+			urlsTabDiv.appendChild(elemDiv);
 		}
 
 		// urlspage
 		var urlsDiv = getElement('div', 'gtfo-url-div', null, null);
-		urlsDiv.appendChild(grabberDiv);
+		urlsDiv.appendChild(urlsTabDiv);
 		newBody.appendChild(urlsDiv);
 
 		// add old body
@@ -218,7 +218,7 @@ function gtfo_Grabber() {
 		alert("Grabber has already been executed!");
 	}
 
-	switchTab('Grabber');
+	switchTab('Urls');
 }
 
 function onCreated(tab) {
