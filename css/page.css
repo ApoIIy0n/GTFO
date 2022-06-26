@@ -224,3 +224,9 @@
 .gtfo-comments-treeview-caret-side::before {
 	transform: rotate(0deg) !important;
 }
+
+#gtfo-comments-treeview-url {
+	color:white;
+	font-family: 'Consolas', consolas;
+	font-size: 12px;
+}

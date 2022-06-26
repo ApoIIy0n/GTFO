@@ -134,36 +134,61 @@ function gtfo_Grabber_Save() {
 	document.removeelem
 }
 
-async function gtfo_GetCommentsDiv() {
+function gtfo_GetCommentsFromData(data) {
+	const ignoreCharacters = ['\"', '(', '\'', '"'];
+	const regexp = /\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm;
+	var scriptComments = Array.from(data.matchAll(regexp));
+	var scriptCommentsCleaned = [];
+	var firstChar, lastChar, scriptComment;
+	for (let j = 0; j < scriptComments.length; j++) {
+		scriptComment = scriptComments[j].toString();
+		firstChar = scriptComment.charAt(0);
 
+		if (!ignoreCharacters.includes(firstChar)) {
+			scriptComment = scriptComment.replace(/\t/g, '').trim();
+			lastChar = scriptComment.charAt(scriptComment.length - 1);
+
+			if (lastChar == ',')
+				scriptComment = scriptComment.slice(0, -1);
+			// no more duplications
+			if (!scriptCommentsCleaned.includes(scriptComment))
+				scriptCommentsCleaned.push(scriptComment);
+		}
+	}
+
+	return scriptCommentsCleaned;
+}
+
+async function gtfo_GetCommentsDiv() {
 	// html
 	htmlComments = [];
 	nodeIterator = document.createTreeWalker(document, NodeFilter.SHOW_COMMENT, null, null);
 
-	var commentsTreeViewHtmlItems = getElement('ul', 'gtfo-comments-treeview-nested', 'gtfo-comments-treeview-nested', null);
+	var htmlTreeViewHtmlItems = getElement('ul', 'gtfo-comments-treeview-nested', 'gtfo-comments-treeview-nested', null);
 
+	// removal of duplicates
 	while (comment = nodeIterator.nextNode()) {
-		var commentsTreeViewHtmlItem = getElement('li', 'gtfo-comments-treeview-li', null, null);
-		commentsTreeViewHtmlItem.textContent = comment.textContent;
-		commentsTreeViewHtmlItems.appendChild(commentsTreeViewHtmlItem);
+		comment = comment.textContent.trim();
+		if (!htmlComments.includes(comment))
+			htmlComments.push(comment);
 	}
 
-	var commentsTreeViewSpan = getElement('span', 'gtfo-comments-treeview-span', 'gtfo-comments-treeview-caret', null);
-	commentsTreeViewSpan.textContent = 'HTML';
-	commentsTreeViewSpan.onclick = function () {
+	for (let i = 0; i < htmlComments.length; i++) {
+		var htmlTreeViewHtmlItem = getElement('li', 'gtfo-comments-treeview-li', null, null);
+		htmlTreeViewHtmlItem.textContent = htmlComments[i];
+		htmlTreeViewHtmlItems.appendChild(htmlTreeViewHtmlItem);
+	}
+
+	var htmlTreeViewSpan = getElement('span', 'gtfo-comments-treeview-span', 'gtfo-comments-treeview-caret', null);
+	htmlTreeViewSpan.textContent = 'HTML';
+	htmlTreeViewSpan.onclick = function () {
 		this.classList.toggle('gtfo-comments-treeview-caret-side');
 		this.parentElement.querySelector('.gtfo-comments-treeview-nested').classList.toggle('gtfo-comments-treeview-active');
 	}
 
-	var commentsTreeViewLi = getElement('li', 'gtfo-comments-treeview-li', null, null);
-	commentsTreeViewLi.appendChild(commentsTreeViewSpan);
-	commentsTreeViewLi.appendChild(commentsTreeViewHtmlItems);
-
-	var commentsTreeView = getElement('ul', 'gtfo-comments-treeview-ul', null, null);
-	commentsTreeView.appendChild(commentsTreeViewLi);
-
-	var commentsTabDiv = getPageDiv('Comments', null, null);
-	commentsTabDiv.appendChild(commentsTreeView);
+	var htmlTreeViewLi = getElement('li', 'gtfo-comments-treeview-li', null, null);
+	htmlTreeViewLi.appendChild(htmlTreeViewSpan);
+	htmlTreeViewLi.appendChild(htmlTreeViewHtmlItems);
 
 	// js
 	jsComments = [];
@@ -171,40 +196,87 @@ async function gtfo_GetCommentsDiv() {
 
 	var scriptResults = [];
 	var response, scriptData;
-	var scriptComments = [];
-	var scriptComment;
-	var firstChar, lastChar;
-	const regexp = /\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm;
+	var scriptCommentsCleaned = [];
+
+	pageScripts = { file: 'Page', location: null, comments: []};
 	for (let i = 0; i < scripts.length; i++) {
 		// slow process, needs to be downloaded..
-		if(scripts[i].src) {
+		if (scripts[i].src) {
 			response = await fetch(scripts[i].src);
 			scriptData = await response.text();
-			scriptComments = Array.from(scriptData.matchAll(regexp));
-			scriptCommentsCleaned = [];
-			for (let j = 0; j < scriptComments.length; j++) {
-				scriptComment = scriptComments[j].toString();
-				firstChar = scriptComment.charAt(0);
+			scriptCommentsCleaned = gtfo_GetCommentsFromData(scriptData);
+		}
+		else {
+			scriptCommentsCleaned = gtfo_GetCommentsFromData(scripts[i].textContent);
+		}
 
-				if(firstChar != '\"') {
-					scriptComment = scriptComment.replace(/\t/g, '').trim();
-					lastChar = scriptComment.charAt(scriptComment.length - 1);
-
-					if(lastChar == ',')
-						scriptComment = scriptComment.slice(0, -1);
-					scriptCommentsCleaned.push(scriptComment);
-				}
-			}
-
-			if(scriptCommentsCleaned.length > 0) {
-				var fileName = scripts[i].src.split('/');
+		if (scriptCommentsCleaned.length > 0) {
+			var fileName;
+			var location;
+			if (scripts[i].src) {
+				fileName = scripts[i].src.split('/');
 				fileName = fileName[fileName.length - 1];
-				scriptResults.push({file: fileName, comments: scriptCommentsCleaned});
+				location = scripts[i].src;
+				scriptResults.push({ file: fileName, location: scripts[i].src, comments: scriptCommentsCleaned });
+			}
+			else {
+				if(pageScripts.comments.length > 0)
+					pageScripts.comments.push.apply(scriptCommentsCleaned);
+				else
+					pageScripts.comments = scriptCommentsCleaned;
 			}
 		}
 	}
 
-	console.log(scriptResults);
+	if(pageScripts.comments.length > 0) {
+		scriptResults.unshift(pageScripts);
+		console.log(pageScripts);
+	}
+
+	var jsNestedFiles = getElement('ul', 'gtfo-comments-treeview-nested', 'gtfo-comments-treeview-nested', null);
+	for (let i = 0; i < scriptResults.length; i++) {
+		var jsNestedItems = getElement('ul', 'gtfo-comments-treeview-nested', 'gtfo-comments-treeview-nested', null);
+		for (let j = 0; j < scriptResults[i].comments.length; j++) {
+			var jsNestedItem = getElement('li', 'gtfo-comments-treeview-li', null, null);
+			jsNestedItem.textContent = scriptResults[i].comments[j];
+			jsNestedItems.appendChild(jsNestedItem);
+		}
+
+		var jsTreeViewSpan = getElement('span', 'gtfo-comments-treeview-span', 'gtfo-comments-treeview-caret', null);
+		jsTreeViewSpan.onclick = function () {
+			this.classList.toggle('gtfo-comments-treeview-caret-side');
+			this.parentElement.querySelector('.gtfo-comments-treeview-nested').classList.toggle('gtfo-comments-treeview-active');
+		}
+
+		var jsLink = getElement('a', 'gtfo-comments-treeview-url', null, scriptResults[i].file );
+		if(scriptResults[i].location)
+			jsLink.href = scriptResults[i].location;
+		jsTreeViewSpan.appendChild(jsLink);
+
+		var jsTreeViewLi = getElement('li', 'gtfo-comments-treeview-li', null, null);
+		jsTreeViewLi.appendChild(jsTreeViewSpan);
+		jsTreeViewLi.appendChild(jsNestedItems);
+		jsNestedFiles.appendChild(jsTreeViewLi);
+	}
+
+	var jsTreeViewSpan = getElement('span', 'gtfo-comments-treeview-span', 'gtfo-comments-treeview-caret', null);
+	jsTreeViewSpan.textContent = 'JavaScript';
+	jsTreeViewSpan.onclick = function () {
+		this.classList.toggle('gtfo-comments-treeview-caret-side');
+		this.parentElement.querySelector('.gtfo-comments-treeview-nested').classList.toggle('gtfo-comments-treeview-active');
+	}
+
+	var jsTreeViewLi = getElement('li', 'gtfo-comments-treeview-li', null, null);
+	jsTreeViewLi.appendChild(jsTreeViewSpan);
+	jsTreeViewLi.appendChild(jsNestedFiles);
+
+	// adding all to the treeview
+	var commentsTreeView = getElement('ul', 'gtfo-comments-treeview-ul', null, null);
+	commentsTreeView.appendChild(htmlTreeViewLi);
+	commentsTreeView.appendChild(jsTreeViewLi);
+
+	var commentsTabDiv = getPageDiv('Comments', null, null);
+	commentsTabDiv.appendChild(commentsTreeView);
 
 	return commentsTabDiv;
 }
