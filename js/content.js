@@ -134,7 +134,7 @@ function gtfo_Grabber_Save() {
 	document.removeelem
 }
 
-function gtfo_GetCommentsDiv() {
+async function gtfo_GetCommentsDiv() {
 
 	// html
 	htmlComments = [];
@@ -146,7 +146,6 @@ function gtfo_GetCommentsDiv() {
 		var commentsTreeViewHtmlItem = getElement('li', 'gtfo-comments-treeview-li', null, null);
 		commentsTreeViewHtmlItem.textContent = comment.textContent;
 		commentsTreeViewHtmlItems.appendChild(commentsTreeViewHtmlItem);
-		console.log(comment.textContent);
 	}
 
 	var commentsTreeViewSpan = getElement('span', 'gtfo-comments-treeview-span', 'gtfo-comments-treeview-caret', null);
@@ -165,6 +164,47 @@ function gtfo_GetCommentsDiv() {
 
 	var commentsTabDiv = getPageDiv('Comments', null, null);
 	commentsTabDiv.appendChild(commentsTreeView);
+
+	// js
+	jsComments = [];
+	var scripts = document.getElementsByTagName('script');
+
+	var scriptResults = [];
+	var response, scriptData;
+	var scriptComments = [];
+	var scriptComment;
+	var firstChar, lastChar;
+	const regexp = /\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm;
+	for (let i = 0; i < scripts.length; i++) {
+		// slow process, needs to be downloaded..
+		if(scripts[i].src) {
+			response = await fetch(scripts[i].src);
+			scriptData = await response.text();
+			scriptComments = Array.from(scriptData.matchAll(regexp));
+			scriptCommentsCleaned = [];
+			for (let j = 0; j < scriptComments.length; j++) {
+				scriptComment = scriptComments[j].toString();
+				firstChar = scriptComment.charAt(0);
+
+				if(firstChar != '\"') {
+					scriptComment = scriptComment.replace(/\t/g, '').trim();
+					lastChar = scriptComment.charAt(scriptComment.length - 1);
+
+					if(lastChar == ',')
+						scriptComment = scriptComment.slice(0, -1);
+					scriptCommentsCleaned.push(scriptComment);
+				}
+			}
+
+			if(scriptCommentsCleaned.length > 0) {
+				var fileName = scripts[i].src.split('/');
+				fileName = fileName[fileName.length - 1];
+				scriptResults.push({file: fileName, comments: scriptCommentsCleaned});
+			}
+		}
+	}
+
+	console.log(scriptResults);
 
 	return commentsTabDiv;
 }
@@ -233,7 +273,7 @@ function gtfo_GetUrlsDiv() {
 	return urlsDiv;
 }
 
-function gtfo_Grabber() {
+async function gtfo_Grabber() {
 	if (!document.getElementById(randomString)) {
 		originalBackgroundColor = window.getComputedStyle(document.body, null).backgroundColor;
 
@@ -250,7 +290,7 @@ function gtfo_Grabber() {
 		newBody.appendChild(gtfo_GetUrlsDiv());
 
 		// add comments div
-		newBody.appendChild(gtfo_GetCommentsDiv());
+		newBody.appendChild(await gtfo_GetCommentsDiv());
 
 		// add old body
 		newBody.appendChild(getPageDiv('Page', null, document.body.innerHTML));
@@ -294,13 +334,13 @@ function gtfo_RightClick() {
 	});
 }
 
-browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 	switch (request.type) {
 		case 'gtfo_unhide':
 			gtfo_Unhide();
 			break;
 		case 'gtfo_grabber':
-			gtfo_Grabber();
+			await gtfo_Grabber();
 			break;
 		case 'gtfo_rightclick':
 			gtfo_RightClick();
