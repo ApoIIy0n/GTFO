@@ -188,6 +188,11 @@
 	transform: translateY(-50%);
 }
 
+[id*="activeTab"] {
+	color: red;
+	border-color: red;
+}
+
 #gtfo-comments-treeview-ul {
 	list-style-type: none;
 	color:white;

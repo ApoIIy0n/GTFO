@@ -33,6 +33,18 @@ function switchTab(tabName, elmnt) {
 
 	document.body.style.backgroundColor = (tabName == 'Page') ? originalBackgroundColor : '#313131';
 
+	var tabButtons = document.getElementsByClassName('gtfo-tab-button');
+	console.log(tabButtons);
+	for (let tabButton of tabButtons) {
+		if(tabButton.id.includes('activeTab'))
+			tabButton.id = tabButton.id.replace('-activeTab','');
+		if(tabButton.textContent == tabName) {
+			if(!tabButton.id.includes('activeTab'))
+				console.log(`should make ${tabButton.id} active`);
+				tabButton.id = `${tabButton.id}-activeTab`;
+		}
+	}
+
 	if (tabName == 'Page') {
 		document.body.style.backgroundColor = originalBackgroundColor;
 	}
@@ -356,6 +368,7 @@ async function gtfo_Grabber() {
 		topBarDiv.appendChild(getPageButton('Page', true, 'gtfo-tab-button'));
 		topBarDiv.appendChild(getPageButton('Urls', true, 'gtfo-tab-button'));
 		topBarDiv.appendChild(getPageButton('Comments', true, 'gtfo-tab-button'));
+		topBarDiv.appendChild(getPageButton('Images', true, 'gtfo-tab-button'));
 		newBody.appendChild(topBarDiv);
 
 		// add urls div
