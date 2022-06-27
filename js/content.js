@@ -34,13 +34,11 @@ function switchTab(tabName, elmnt) {
 	document.body.style.backgroundColor = (tabName == 'Page') ? originalBackgroundColor : '#313131';
 
 	var tabButtons = document.getElementsByClassName('gtfo-tab-button');
-	console.log(tabButtons);
 	for (let tabButton of tabButtons) {
 		if(tabButton.id.includes('activeTab'))
 			tabButton.id = tabButton.id.replace('-activeTab','');
 		if(tabButton.textContent == tabName) {
 			if(!tabButton.id.includes('activeTab'))
-				console.log(`should make ${tabButton.id} active`);
 				tabButton.id = `${tabButton.id}-activeTab`;
 		}
 	}
@@ -242,7 +240,6 @@ async function gtfo_GetCommentsDiv() {
 
 	if(pageScripts.comments.length > 0) {
 		scriptResults.unshift(pageScripts);
-		console.log(pageScripts);
 	}
 
 	var jsNestedFiles = getElement('ul', 'gtfo-comments-treeview-nested', 'gtfo-comments-treeview-nested', null);
