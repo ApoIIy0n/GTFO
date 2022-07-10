@@ -212,9 +212,18 @@ async function gtfo_GetCommentsDiv() {
 	for (let i = 0; i < scripts.length; i++) {
 		// slow process, needs to be downloaded..
 		if (scripts[i].src) {
-			response = await fetch(scripts[i].src);
-			scriptData = await response.text();
-			scriptCommentsCleaned = gtfo_GetCommentsFromData(scriptData);
+			fetch(scripts[i].src).then((response) => {
+				if(response.ok) {
+					return response.text();
+				}
+				throw new Error();
+			})
+			.then((scriptdata) => {
+				scriptCommentsCleaned = gtfo_GetCommentsFromData(scriptdata);
+			})
+			.catch((error) => {
+				console.log(`Can't load file: ${scripts[i].src}`);
+			});
 		}
 		else {
 			scriptCommentsCleaned = gtfo_GetCommentsFromData(scripts[i].textContent);
@@ -365,7 +374,7 @@ async function gtfo_Grabber() {
 		topBarDiv.appendChild(getPageButton('Page', true, 'gtfo-tab-button'));
 		topBarDiv.appendChild(getPageButton('Urls', true, 'gtfo-tab-button'));
 		topBarDiv.appendChild(getPageButton('Comments', true, 'gtfo-tab-button'));
-		topBarDiv.appendChild(getPageButton('Images', true, 'gtfo-tab-button'));
+		//topBarDiv.appendChild(getPageButton('Images', true, 'gtfo-tab-button'));
 		newBody.appendChild(topBarDiv);
 
 		// add urls div
