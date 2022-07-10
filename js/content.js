@@ -5,7 +5,7 @@ const randomize = (n, r = '') => {
 
 // set to a fixed string for now because of CSS styling
 var randomString = 'GTFO-BODY';//randomize(Math.floor(Math.random() * (8 - 2 + 1) + 2));
-var originalBackgroundColor;
+var originalBackgroundColor, originalBackgroundImage;
 
 function removeClassFromElements(className) {
 	const foundElements = document.getElementsByClassName(className);
@@ -31,7 +31,18 @@ function gtfo_Unhide() {
 function switchTab(tabName, elmnt) {
 	var tabcontent = document.getElementsByClassName("tabcontent");
 
-	document.body.style.backgroundColor = (tabName == 'Page') ? originalBackgroundColor : '#313131';
+	if(tabName == 'Page') {
+		if(originalBackgroundImage) {
+			document.body.style.backgroundImage = originalBackgroundImage;
+		}
+		document.body.style.backgroundColor = originalBackgroundColor;
+	}
+	else {
+		if(originalBackgroundImage) {
+			document.body.style.backgroundImage = 'none';
+		}
+		document.body.style.backgroundColor = '#313131';
+	}
 
 	var tabButtons = document.getElementsByClassName('gtfo-tab-button');
 	for (let tabButton of tabButtons) {
@@ -366,6 +377,7 @@ function gtfo_GetUrlsDiv() {
 async function gtfo_Grabber() {
 	if (!document.getElementById(randomString)) {
 		originalBackgroundColor = window.getComputedStyle(document.body, null).backgroundColor;
+		originalBackgroundImage = window.getComputedStyle(document.body, null).backgroundImage;
 
 		var newBody = getElement('body', randomString, null, null);
 
