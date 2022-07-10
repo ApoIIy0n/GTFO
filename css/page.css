@@ -28,6 +28,8 @@
 	margin-top: 5px;
 	font-size: 12px;
 	color: white;
+	float: none;
+	display:inline;
 }
 
 #Grabber {
