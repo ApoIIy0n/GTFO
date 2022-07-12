@@ -300,7 +300,8 @@
 
 #gtfo-image-info-text {
 	color: white;
-  	font-family: Consolas, monaco, monospace;
+	font-family: 'Consolas', consolas;
+	font-size: 12px;
 	margin-top: 5px;
 	margin-left: 5px;
 }
