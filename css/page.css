@@ -240,15 +240,38 @@
 
 #gtfo-image-container {
 	display: inline-block;
+	background-color: #1a1a1a;
+	box-shadow: 0px 10px 20px -10px rgba(0,0,0,0.9);
+	margin: 10px 0px 10px 20px;
+	outline-style: solid;
+	outline-color: white;
+	outline-width: 1px;
+	outline-offset: 2px;
+}
+
+#gtfo-image-container:hover {
+	outline-color: red;
 }
 
 #gtfo-image-display {
+	background-color: #313131;
 	display: flex;
-	height: 250px;
-	width: 250px;
+	height: 260px;
+	width: 260px;
 }
 
 #gtfo-image-picture {
 	display: block;
 	margin: auto;
+}
+
+#gtfo-image-info {
+	background-color: #313131;
+}
+
+#gtfo-image-info-text {
+	color: white;
+  	font-family: Consolas, monaco, monospace;
+	margin-top: 5px;
+	margin-left: 5px;
 }

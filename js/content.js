@@ -394,7 +394,7 @@ async function gtfo_GetImagesDiv() {
 	var images = document.getElementsByTagName("img");
 
 	var imageNumber = 0;
-	var imagesPerLine = 3;
+	var imagesPerLine = 5;
 
 	var imagesDiv = getPageDiv('Images', null, null);
 	var imagesLineDiv;
