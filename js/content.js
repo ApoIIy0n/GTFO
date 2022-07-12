@@ -449,26 +449,27 @@ async function gtfo_GetImagesDiv() {
 		// imageinfo
 		imageType = getElement('div', 'gtfo-image-info-text', null, 'Type: PNG');
 		imageSize = getElement('div', 'gtfo-image-info-text', null, `Size: ${imageInfo.size}KB`);
-		imageResolution = getElement('div', 'gtfo-image-info-text', null, `Resolution: ${imageInfo.width} x ${imageInfo.height}`);
+
+		// 		buttonbar
+		imageCopyButton = getElement('button', 'gtfo-image-button-copy', null, 'Copy');
+		imageSaveButton = getElement('button', 'gtfo-image-button-save', null, 'Save');
+
+		imageButtonBar = getElement('div', 'gtfo-image-buttonbar', null, null);
+		imageButtonBar.appendChild(imageSaveButton);
+		imageButtonBar.appendChild(imageCopyButton);
+
+		imageResolution = getElement('div', 'gtfo-image-info-text', null, `Res: ${imageInfo.width} x ${imageInfo.height}`);
+		imageResolution.appendChild(imageButtonBar);
 
 		imageDisplayInfo = getElement('div', 'gtfo-image-info', null, null);
 		imageDisplayInfo.appendChild(imageType);
 		imageDisplayInfo.appendChild(imageSize);
 		imageDisplayInfo.appendChild(imageResolution);
-
-		// buttonbar
-		imageCopyButton = getElement('button', 'gtfo-image-copy-button', null, null);
-		imageSaveButton = getElement('button', 'gtfo-image-save-button', null, null);
-
-		imageButtonBar = getElement('div', 'gtfo-image-buttonbar', null, null);
-		imageButtonBar.appendChild(imageCopyButton);
-		imageButtonBar.appendChild(imageSaveButton);
 		
 		// image container
 		imageContainer = getElement('div', 'gtfo-image-container', null, null);
 		imageContainer.appendChild(imageDisplay);
 		imageContainer.appendChild(imageDisplayInfo);
-		imageContainer.appendChild(imageButtonBar);
 
 		imagesLineDiv.appendChild(imageContainer);
 

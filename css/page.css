@@ -105,6 +105,7 @@
 	width: calc(100% - 25px);
 }
 
+[id^="gtfo-image-button-"],
 [id^="gtfo-tab-button-"],
 [id^="gtfo-topbar-button-"] {
 	font-family: 'Consolas', consolas;
@@ -130,32 +131,45 @@
 	line-height: 18px;
 }
 
+[id^="gtfo-image-button-"] {
+	float: right;
+	padding: 1.5px 5px;
+	line-height: 12px;
+}
+
+[id^="gtfo-image-button-"]:hover,
 [id^="gtfo-tab-button-"]:hover,
 [id^="gtfo-topbar-button-"]:hover {
 	color: red;
 	border-color: red;
 }
 
+[id^="gtfo-image-button-"]:hover::before,
 [id^="gtfo-tab-button-"]:hover::before,
 [id^="gtfo-topbar-button-"]:hover::before {
 	width: 0%;
 }
 
+[id^="gtfo-image-button-"]:hover::after,
 [id^="gtfo-tab-button-"]:hover::after,
 [id^="gtfo-topbar-button-"]:hover::after {
 	height: 0%;
 }
 
+[id^="gtfo-image-button-"]:active,
 [id^="gtfo-tab-button-"]:active,
 [id^="gtfo-topbar-button-"]:active {
 	border-width: 0.05rem;
 	background-color: #1a1a1a;
 }
 
+[id^="gtfo-image-button-"]:active,
 [id^="gtfo-topbar-button-"]:active {
 	background-color: #313131;
 }
 
+[id^="gtfo-image-button-"]::before,
+[id^="gtfo-image-button-"]::after,
 [id^="gtfo-tab-button-"]::before,
 [id^="gtfo-tab-button-"]::after,
 [id^="gtfo-topbar-button-"]::before,
@@ -171,6 +185,8 @@
 	transform: translateX(-50%);
 }
 
+[id^="gtfo-image-button-"]::before,
+[id^="gtfo-image-button-"]::after,
 [id^="gtfo-topbar-button-"]::before,
 [id^="gtfo-topbar-button-"]::after {
 	background-color: #313131;
@@ -184,6 +200,14 @@
 [id^="gtfo-topbar-button-"]::after,
 [id^="gtfo-tab-button-"]::after {
 	height: calc(100% - 1rem);
+	width: calc(100% + 0.2rem);
+	left: -0.1rem;
+	top: 50%;
+	transform: translateY(-50%);
+}
+
+[id^="gtfo-image-button-"]::after {
+	height: calc(100% - .5rem);
 	width: calc(100% + 0.2rem);
 	left: -0.1rem;
 	top: 50%;
@@ -239,18 +263,15 @@
 }
 
 #gtfo-image-container {
+	--imageHoverColor: white;
 	display: inline-block;
-	background-color: #1a1a1a;
+	background-color: #313131;
 	box-shadow: 0px 10px 20px -10px rgba(0,0,0,0.9);
 	margin: 10px 0px 10px 20px;
 	outline-style: solid;
-	outline-color: white;
+	outline-color: var(--imageHoverColor);
 	outline-width: 1px;
 	outline-offset: 2px;
-}
-
-#gtfo-image-container:hover {
-	outline-color: red;
 }
 
 #gtfo-image-display {
@@ -258,6 +279,14 @@
 	display: flex;
 	height: 260px;
 	width: 260px;
+	outline-style: solid;
+	outline-color: var(--imageHoverColor);
+	outline-width: 1px;
+	outline-offset: 2px;
+}
+
+#gtfo-image-container:hover {
+	--imageHoverColor: red;
 }
 
 #gtfo-image-picture {
@@ -274,4 +303,10 @@
   	font-family: Consolas, monaco, monospace;
 	margin-top: 5px;
 	margin-left: 5px;
+}
+
+#gtfo-image-buttonbar {
+	display: inline;
+	background-color: #313131;
+	height: 100%;
 }
