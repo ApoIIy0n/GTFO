@@ -237,3 +237,18 @@
 	font-family: 'Consolas', consolas;
 	font-size: 12px;
 }
+
+#gtfo-image-container {
+	display: inline-block;
+}
+
+#gtfo-image-display {
+	display: flex;
+	height: 250px;
+	width: 250px;
+}
+
+#gtfo-image-picture {
+	display: block;
+	margin: auto;
+}

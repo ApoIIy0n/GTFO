@@ -242,11 +242,9 @@ async function gtfo_GetCommentsDiv() {
 
 		if (scriptCommentsCleaned.length > 0) {
 			var fileName;
-			var location;
 			if (scripts[i].src) {
 				fileName = scripts[i].src.split('/');
 				fileName = fileName[fileName.length - 1];
-				location = scripts[i].src;
 				scriptResults.push({ file: fileName, location: scripts[i].src, comments: scriptCommentsCleaned });
 			}
 			else {
@@ -374,6 +372,116 @@ function gtfo_GetUrlsDiv() {
 	return urlsDiv;
 }
 
+function getBase64Image(img) {
+    var canvas = document.createElement("canvas");
+
+    canvas.width = img.naturalWidth ? img.naturalWidth : img.width;
+    canvas.height = img.naturalHeight ? img.naturalHeight : img.height;
+
+    var ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+
+    var dataURL = canvas.toDataURL("image/png");
+	var dataString = dataURL.replace(/^data:image\/(png|jpg);base64,/, "");
+	var sizeInKiloBytes = (4 * Math.ceil((dataString.length / 3))*0.5624896334383812) / 1024;
+	sizeInKiloBytes = Number(Math.round(sizeInKiloBytes+'e2')+'e-2');
+	var newImage = { data: dataURL, width: canvas.width, height: canvas.height, size: sizeInKiloBytes };
+
+    return newImage;
+}
+
+async function gtfo_GetImagesDiv() {
+	var images = document.getElementsByTagName("img");
+
+	var imageNumber = 0;
+	var imagesPerLine = 3;
+
+	var imagesDiv = getPageDiv('Images', null, null);
+	var imagesLineDiv;
+	var imageContainer, imagePicture, imageInfo;
+	var imageButtonBar, imageCopyButton, imageSaveButton;
+	var imageDisplayInfo, imageType, imageSize, imageResolution;
+
+	// filter out the duplicates
+	var filteredImages = [];
+	for (var i = 0; i < images.length; i++) {
+		imageInfo = getBase64Image(images[i]);
+
+		var addInfo = true;
+		for (var a = 0; a < filteredImages.length; a++) {
+			if(filteredImages[a].data == imageInfo.data)
+				addInfo = false;
+		}
+
+		if (addInfo)
+			filteredImages.push(imageInfo);
+	}
+
+	for (var i = 0; i < filteredImages.length; i++) {
+		imageNumber += 1;
+
+		if(imageNumber == 1) {
+			imagesLineDiv = getElement('div', 'gtfo-images-line', null, null);
+		}
+		
+		// image data
+		imageInfo = filteredImages[i];
+
+		// image picture
+		imagePicture = getElement('img', 'gtfo-image-picture', null, null);
+		imagePicture.src = imageInfo.data;
+
+		maxImageSize = 250;
+		// only when the image size exceeds the maxImageSize we want to resize because of the quality
+		if(imageInfo.height > maxImageSize || imageInfo.width > maxImageSize) {
+			imagePicture.height = imageInfo.height > imageInfo.width ? maxImageSize : maxImageSize / (imageInfo.width / imageInfo.height);
+			imagePicture.width = imageInfo.width > imageInfo.height ? maxImageSize : maxImageSize / (imageInfo.height / imageInfo.width);
+		}
+		else {
+			imagePicture.height = imageInfo.height;
+			imagePicture.width = imageInfo.width;
+		}
+		imagePicture.alt = `gtfo_image_${i}`;
+
+		imageDisplay = getElement('div', 'gtfo-image-display', null, null);
+		imageDisplay.appendChild(imagePicture);
+
+		// imageinfo
+		imageType = getElement('div', 'gtfo-image-info-text', null, 'Type: PNG');
+		imageSize = getElement('div', 'gtfo-image-info-text', null, `Size: ${imageInfo.size}KB`);
+		imageResolution = getElement('div', 'gtfo-image-info-text', null, `Resolution: ${imageInfo.width} x ${imageInfo.height}`);
+
+		imageDisplayInfo = getElement('div', 'gtfo-image-info', null, null);
+		imageDisplayInfo.appendChild(imageType);
+		imageDisplayInfo.appendChild(imageSize);
+		imageDisplayInfo.appendChild(imageResolution);
+
+		// buttonbar
+		imageCopyButton = getElement('button', 'gtfo-image-copy-button', null, null);
+		imageSaveButton = getElement('button', 'gtfo-image-save-button', null, null);
+
+		imageButtonBar = getElement('div', 'gtfo-image-buttonbar', null, null);
+		imageButtonBar.appendChild(imageCopyButton);
+		imageButtonBar.appendChild(imageSaveButton);
+		
+		// image container
+		imageContainer = getElement('div', 'gtfo-image-container', null, null);
+		imageContainer.appendChild(imageDisplay);
+		imageContainer.appendChild(imageDisplayInfo);
+		imageContainer.appendChild(imageButtonBar);
+
+		imagesLineDiv.appendChild(imageContainer);
+
+		if(imageNumber == imagesPerLine || i == filteredImages.length - 1)
+		{
+			imageNumber = 0;
+			imagesDiv.appendChild(imagesLineDiv);
+		}
+	}
+
+	return imagesDiv;
+}
+
 async function gtfo_Grabber() {
 	if (!document.getElementById(randomString)) {
 		originalBackgroundColor = window.getComputedStyle(document.body, null).backgroundColor;
@@ -386,7 +494,7 @@ async function gtfo_Grabber() {
 		topBarDiv.appendChild(getPageButton('Page', true, 'gtfo-tab-button'));
 		topBarDiv.appendChild(getPageButton('Urls', true, 'gtfo-tab-button'));
 		topBarDiv.appendChild(getPageButton('Comments', true, 'gtfo-tab-button'));
-		//topBarDiv.appendChild(getPageButton('Images', true, 'gtfo-tab-button'));
+		topBarDiv.appendChild(getPageButton('Images', true, 'gtfo-tab-button'));
 		newBody.appendChild(topBarDiv);
 
 		// add urls div
@@ -394,6 +502,9 @@ async function gtfo_Grabber() {
 
 		// add comments div
 		newBody.appendChild(await gtfo_GetCommentsDiv());
+
+		// add images div
+		newBody.appendChild(await gtfo_GetImagesDiv());
 
 		// add old body
 		newBody.appendChild(getPageDiv('Page', null, document.body.innerHTML));
