@@ -31,14 +31,14 @@ function gtfo_Unhide() {
 function switchTab(tabName, elmnt) {
 	var tabcontent = document.getElementsByClassName("tabcontent");
 
-	if(tabName == 'Page') {
-		if(originalBackgroundImage) {
+	if (tabName == 'Page') {
+		if (originalBackgroundImage) {
 			document.body.style.backgroundImage = originalBackgroundImage;
 		}
 		document.body.style.backgroundColor = originalBackgroundColor;
 	}
 	else {
-		if(originalBackgroundImage) {
+		if (originalBackgroundImage) {
 			document.body.style.backgroundImage = 'none';
 		}
 		document.body.style.backgroundColor = '#313131';
@@ -46,10 +46,10 @@ function switchTab(tabName, elmnt) {
 
 	var tabButtons = document.getElementsByClassName('gtfo-tab-button');
 	for (let tabButton of tabButtons) {
-		if(tabButton.id.includes('activeTab'))
-			tabButton.id = tabButton.id.replace('-activeTab','');
-		if(tabButton.textContent == tabName) {
-			if(!tabButton.id.includes('activeTab'))
+		if (tabButton.id.includes('activeTab'))
+			tabButton.id = tabButton.id.replace('-activeTab', '');
+		if (tabButton.textContent == tabName) {
+			if (!tabButton.id.includes('activeTab'))
 				tabButton.id = `${tabButton.id}-activeTab`;
 		}
 	}
@@ -219,22 +219,22 @@ async function gtfo_GetCommentsDiv() {
 	var response, scriptData;
 	var scriptCommentsCleaned = [];
 
-	pageScripts = { file: 'Page', location: null, comments: []};
+	pageScripts = { file: 'Page', location: null, comments: [] };
 	for (let i = 0; i < scripts.length; i++) {
 		// slow process, needs to be downloaded..
 		if (scripts[i].src) {
 			fetch(scripts[i].src).then((response) => {
-				if(response.ok) {
+				if (response.ok) {
 					return response.text();
 				}
 				throw new Error();
 			})
-			.then((scriptdata) => {
-				scriptCommentsCleaned = gtfo_GetCommentsFromData(scriptdata);
-			})
-			.catch((error) => {
-				console.log(`Can't load file: ${scripts[i].src}`);
-			});
+				.then((scriptdata) => {
+					scriptCommentsCleaned = gtfo_GetCommentsFromData(scriptdata);
+				})
+				.catch((error) => {
+					console.log(`Can't load file: ${scripts[i].src}`);
+				});
 		}
 		else {
 			scriptCommentsCleaned = gtfo_GetCommentsFromData(scripts[i].textContent);
@@ -248,7 +248,7 @@ async function gtfo_GetCommentsDiv() {
 				scriptResults.push({ file: fileName, location: scripts[i].src, comments: scriptCommentsCleaned });
 			}
 			else {
-				if(pageScripts.comments.length > 0)
+				if (pageScripts.comments.length > 0)
 					pageScripts.comments.push.apply(scriptCommentsCleaned);
 				else
 					pageScripts.comments = scriptCommentsCleaned;
@@ -256,7 +256,7 @@ async function gtfo_GetCommentsDiv() {
 		}
 	}
 
-	if(pageScripts.comments.length > 0) {
+	if (pageScripts.comments.length > 0) {
 		scriptResults.unshift(pageScripts);
 	}
 
@@ -275,8 +275,8 @@ async function gtfo_GetCommentsDiv() {
 			this.parentElement.querySelector('.gtfo-comments-treeview-nested').classList.toggle('gtfo-comments-treeview-active');
 		}
 
-		var jsLink = getElement('a', 'gtfo-comments-treeview-url', null, scriptResults[i].file );
-		if(scriptResults[i].location)
+		var jsLink = getElement('a', 'gtfo-comments-treeview-url', null, scriptResults[i].file);
+		if (scriptResults[i].location)
 			jsLink.href = scriptResults[i].location;
 		jsTreeViewSpan.appendChild(jsLink);
 
@@ -373,21 +373,21 @@ function gtfo_GetUrlsDiv() {
 }
 
 function getBase64Image(img) {
-    var canvas = document.createElement("canvas");
+	var canvas = document.createElement("canvas");
 
-    canvas.width = img.naturalWidth ? img.naturalWidth : img.width;
-    canvas.height = img.naturalHeight ? img.naturalHeight : img.height;
+	canvas.width = img.naturalWidth ? img.naturalWidth : img.width;
+	canvas.height = img.naturalHeight ? img.naturalHeight : img.height;
 
-    var ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0);
+	var ctx = canvas.getContext("2d");
+	ctx.drawImage(img, 0, 0);
 
-    var dataURL = canvas.toDataURL("image/png");
+	var dataURL = canvas.toDataURL("image/png");
 	var dataString = dataURL.replace(/^data:image\/(png|jpg);base64,/, "");
-	var sizeInKiloBytes = (4 * Math.ceil((dataString.length / 3))*0.5624896334383812) / 1024;
-	sizeInKiloBytes = Number(Math.round(sizeInKiloBytes+'e2')+'e-2');
+	var sizeInKiloBytes = (4 * Math.ceil((dataString.length / 3)) * 0.5624896334383812) / 1024;
+	sizeInKiloBytes = Number(Math.round(sizeInKiloBytes + 'e2') + 'e-2');
 	var newImage = { data: dataURL, width: canvas.width, height: canvas.height, size: sizeInKiloBytes };
 
-    return newImage;
+	return newImage;
 }
 
 async function gtfo_GetImagesDiv() {
@@ -409,7 +409,7 @@ async function gtfo_GetImagesDiv() {
 
 		var addInfo = true;
 		for (var a = 0; a < filteredImages.length; a++) {
-			if(filteredImages[a].data == imageInfo.data)
+			if (filteredImages[a].data == imageInfo.data)
 				addInfo = false;
 		}
 
@@ -420,10 +420,10 @@ async function gtfo_GetImagesDiv() {
 	for (var i = 0; i < filteredImages.length; i++) {
 		imageNumber += 1;
 
-		if(imageNumber == 1) {
+		if (imageNumber == 1) {
 			imagesLineDiv = getElement('div', 'gtfo-images-line', null, null);
 		}
-		
+
 		// image data
 		imageInfo = filteredImages[i];
 
@@ -433,7 +433,7 @@ async function gtfo_GetImagesDiv() {
 
 		maxImageSize = 250;
 		// only when the image size exceeds the maxImageSize we want to resize because of the quality
-		if(imageInfo.height > maxImageSize || imageInfo.width > maxImageSize) {
+		if (imageInfo.height > maxImageSize || imageInfo.width > maxImageSize) {
 			imagePicture.height = imageInfo.height > imageInfo.width ? maxImageSize : maxImageSize / (imageInfo.width / imageInfo.height);
 			imagePicture.width = imageInfo.width > imageInfo.height ? maxImageSize : maxImageSize / (imageInfo.height / imageInfo.width);
 		}
@@ -465,7 +465,7 @@ async function gtfo_GetImagesDiv() {
 		imageDisplayInfo.appendChild(imageType);
 		imageDisplayInfo.appendChild(imageSize);
 		imageDisplayInfo.appendChild(imageResolution);
-		
+
 		// image container
 		imageContainer = getElement('div', 'gtfo-image-container', null, null);
 		imageContainer.appendChild(imageDisplay);
@@ -473,8 +473,7 @@ async function gtfo_GetImagesDiv() {
 
 		imagesLineDiv.appendChild(imageContainer);
 
-		if(imageNumber == imagesPerLine || i == filteredImages.length - 1)
-		{
+		if (imageNumber == imagesPerLine || i == filteredImages.length - 1) {
 			imageNumber = 0;
 			imagesDiv.appendChild(imagesLineDiv);
 		}
