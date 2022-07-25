@@ -29,7 +29,7 @@
 	font-size: 12px;
 	color: white;
 	float: none;
-	display:inline;
+	display: inline;
 }
 
 #Grabber {
@@ -221,7 +221,7 @@
 
 #gtfo-comments-treeview-ul {
 	list-style-type: none;
-	color:white;
+	color: white;
 	font-family: 'Consolas', consolas;
 	font-size: 12px;
 }
@@ -257,7 +257,7 @@
 }
 
 #gtfo-comments-treeview-url {
-	color:white;
+	color: white;
 	font-family: 'Consolas', consolas;
 	font-size: 12px;
 }
@@ -266,7 +266,7 @@
 	--imageHoverColor: white;
 	display: inline-block;
 	background-color: #313131;
-	box-shadow: 0px 10px 20px -10px rgba(0,0,0,0.9);
+	box-shadow: 0px 10px 20px -10px rgba(0, 0, 0, 0.9);
 	margin: 10px 0px 10px 20px;
 	outline-style: solid;
 	outline-color: var(--imageHoverColor);
