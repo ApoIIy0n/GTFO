@@ -311,3 +311,57 @@
 	background-color: #313131;
 	height: 100%;
 }
+
+#gtfo-image-modal {
+	display: none;
+	position: absolute;
+	z-index: 1;
+	padding-top: 100px;
+	left: 0;
+	top: 0;
+	width: 100%;
+	min-height: 100vh;
+	max-height: calc(max-content + 20px);
+	background-color: rgba(0, 0, 0, 0.4);
+}
+
+#gtfo-image-modal-content {
+	background-color: rgba(0, 0, 0, 0.4);
+	margin: auto;
+	padding: 20px;
+	border: 1px solid #888;
+	width: fit-content;
+	height: auto;
+	display: flex;
+	margin-left: auto;
+	margin-right: auto;
+	margin-bottom: 20px;
+	position: relative;
+}
+
+#gtfo-image-modal-close {
+	position: absolute;
+	color: #aaaaaa;
+	right: 5px;
+	font-size: 20px;
+}
+
+#gtfo-image-modal-close:hover,
+#gtfo-image-modal-close:focus {
+	color: red;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+#gtfo-images-div {
+	box-sizing: content-box;
+	display: block;
+	position: static;
+	line-height: normal;
+}
+
+#gtfo-image-modal-close-div {
+	display: block;
+	position: absolute;
+	width: calc(100% - 40px);
+}

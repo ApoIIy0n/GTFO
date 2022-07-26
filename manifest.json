@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "GTFO",
-  "version": "0.06b",
+  "version": "0.07b",
   "description": "A collection of my personal tools which contains: URL Grabber (grabs all the links from a page and displays them at a new tab in the current page), Unhider (unhides elements and shows invisible elements), RightClick (makes sure rightclick works on a page)",
   "icons": {
     "96": "icons/GTFO.png"

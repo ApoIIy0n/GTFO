@@ -390,6 +390,40 @@ function getBase64Image(img) {
 	return newImage;
 }
 
+function gtfo_Images_Save(image, fileName) {
+	var link = document.createElement("a");
+
+    document.body.appendChild(link); // for Firefox
+
+    link.setAttribute("href", image);
+    link.setAttribute("download", fileName);
+    link.click();
+}
+
+async function gtfo_Images_Copy(base64Data) {
+	const base64 = await fetch(base64Data);
+	//const base64Response = await fetch(`data:image/jpg;base64,${base64Data}`);
+	const blob = await base64.blob();
+
+	browser.clipboard.setImageData(blob, 'png');
+	//await navigator.clipboard.write([new ClipboardItem({ 'img/png': blob })]);
+}
+
+function gtfo_Images_Modal(show, image = null) {
+	var modal = document.getElementById('gtfo-image-modal');
+	if (show)
+	{
+		var modalImage = document.getElementById('gtfo-image-modal-image');
+		modalImage.src = image;
+	
+		modal.style.display = 'block';
+	}
+	else
+		modal.style.display = 'none';
+
+	console.log(image);
+}
+
 async function gtfo_GetImagesDiv() {
 	var images = document.getElementsByTagName("img");
 
@@ -444,6 +478,7 @@ async function gtfo_GetImagesDiv() {
 		imagePicture.alt = `gtfo_image_${i}`;
 
 		imageDisplay = getElement('div', 'gtfo-image-display', null, null);
+		imageDisplay.onclick = function () { gtfo_Images_Modal(true, this.firstChild.src); }
 		imageDisplay.appendChild(imagePicture);
 
 		// imageinfo
@@ -452,11 +487,14 @@ async function gtfo_GetImagesDiv() {
 
 		// 		buttonbar
 		imageCopyButton = getElement('button', 'gtfo-image-button-copy', null, 'Copy');
+		imageCopyButton.onclick = function () { gtfo_Images_Copy(this.parentNode.parentNode.parentNode.parentNode.children[0].children[0].src); }
 		imageSaveButton = getElement('button', 'gtfo-image-button-save', null, 'Save');
+		imageSaveButton.onclick = function () { gtfo_Images_Save(this.parentNode.parentNode.parentNode.parentNode.children[0].children[0].src, `gtfo_Image`); }
 
 		imageButtonBar = getElement('div', 'gtfo-image-buttonbar', null, null);
 		imageButtonBar.appendChild(imageSaveButton);
-		imageButtonBar.appendChild(imageCopyButton);
+		// copy function doesn't work in firefox, need to find another method..
+		//imageButtonBar.appendChild(imageCopyButton);
 
 		imageResolution = getElement('div', 'gtfo-image-info-text', null, `Res: ${imageInfo.width} x ${imageInfo.height}`);
 		imageResolution.appendChild(imageButtonBar);
@@ -479,7 +517,24 @@ async function gtfo_GetImagesDiv() {
 		}
 	}
 
-	return imagesDiv;
+	var imageModalClose = getElement('span', 'gtfo-image-modal-close', null, 'X');
+	imageModalClose.onclick = function () { gtfo_Images_Modal(false); }
+	var imadeModalCloseDiv = getElement('div', 'gtfo-image-modal-close-div', null, null);
+	imadeModalCloseDiv.appendChild(imageModalClose);
+
+	var imageModalImage = getElement('img', 'gtfo-image-modal-image', null, null);
+	var imageModalContent = getElement('div', 'gtfo-image-modal-content', null, null);
+	imageModalContent.appendChild(imageModalImage);
+	imageModalContent.appendChild(imadeModalCloseDiv);
+	var imageModal = getElement('div', 'gtfo-image-modal', null, null);
+	imageModal.appendChild(imageModalContent);
+
+	imagesDiv.appendChild(imageModal);
+
+	var imagesOuterDiv = getElement('div', 'gtfo-images-div', null, null);
+	imagesOuterDiv.appendChild(imagesDiv);
+
+	return imagesOuterDiv;
 }
 
 async function gtfo_Grabber() {
