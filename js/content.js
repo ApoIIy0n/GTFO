@@ -563,7 +563,6 @@ async function gtfo_Grabber() {
 
 		// add old body
 		newBody.appendChild(getPageDiv('Page', null, document.body.innerHTML));
-
 		document.body = newBody;
 	}
 	else {

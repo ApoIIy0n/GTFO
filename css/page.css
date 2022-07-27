@@ -314,20 +314,19 @@
 
 #gtfo-image-modal {
 	display: none;
-	position: absolute;
+	position: fixed;
 	z-index: 1;
-	padding-top: 100px;
 	left: 0;
 	top: 0;
 	width: 100%;
+	height: max-content;
 	min-height: 100vh;
-	max-height: calc(max-content + 20px);
+	padding-top: 30px;
 	background-color: rgba(0, 0, 0, 0.4);
 }
 
 #gtfo-image-modal-content {
 	background-color: rgba(0, 0, 0, 0.4);
-	margin: auto;
 	padding: 20px;
 	border: 1px solid #888;
 	width: fit-content;
@@ -337,6 +336,13 @@
 	margin-right: auto;
 	margin-bottom: 20px;
 	position: relative;
+	max-width: 90vh;
+	max-height: 90vh;
+}
+
+#gtfo-image-modal-image {
+	max-width: 90vh;
+	max-height: 90vh;
 }
 
 #gtfo-image-modal-close {
