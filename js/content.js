@@ -424,6 +424,18 @@ function gtfo_Images_Modal(show, image = null) {
 	console.log(image);
 }
 
+function gtfo_Images_ToggleActive(input) {
+	console.log(input);
+	if(input.id.includes('selected')) {
+		input.id = input.id.replace("-selected","");
+		input.children[0].id = input.children[0].id.replace("-selected","");
+	}
+	else {
+		input.id = `${input.id}-selected`;
+		input.children[0].id = `${input.children[0].id}-selected`;;
+	}
+}
+
 async function gtfo_GetImagesDiv() {
 	var images = document.getElementsByTagName("img");
 
@@ -500,6 +512,7 @@ async function gtfo_GetImagesDiv() {
 		imageResolution.appendChild(imageButtonBar);
 
 		imageDisplayInfo = getElement('div', 'gtfo-image-info', null, null);
+		imageDisplayInfo.onclick = function () { gtfo_Images_ToggleActive(this.parentNode); }
 		imageDisplayInfo.appendChild(imageType);
 		imageDisplayInfo.appendChild(imageSize);
 		imageDisplayInfo.appendChild(imageResolution);

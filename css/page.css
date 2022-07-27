@@ -262,7 +262,7 @@
 	font-size: 12px;
 }
 
-#gtfo-image-container {
+[id^="gtfo-image-container"] {
 	--imageHoverColor: white;
 	display: inline-block;
 	background-color: #313131;
@@ -274,7 +274,7 @@
 	outline-offset: 2px;
 }
 
-#gtfo-image-display {
+[id^="gtfo-image-display"] {
 	background-color: #313131;
 	display: flex;
 	height: 260px;
@@ -285,7 +285,12 @@
 	outline-offset: 2px;
 }
 
-#gtfo-image-container:hover {
+#gtfo-image-container-selected,
+#gtfo-image-display-selected {
+	outline-color: red;
+}
+
+[id^="gtfo-image-container"]:hover {
 	--imageHoverColor: red;
 }
 
