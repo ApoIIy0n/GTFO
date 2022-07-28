@@ -501,7 +501,7 @@ async function gtfo_GetImagesDiv() {
 		imageCopyButton = getElement('button', 'gtfo-image-button-copy', null, 'Copy');
 		imageCopyButton.onclick = function () { gtfo_Images_Copy(this.parentNode.parentNode.parentNode.parentNode.children[0].children[0].src); }
 		imageSaveButton = getElement('button', 'gtfo-image-button-save', null, 'Save');
-		imageSaveButton.onclick = function () { gtfo_Images_Save(this.parentNode.parentNode.parentNode.parentNode.children[0].children[0].src, `gtfo_Image`); }
+		imageSaveButton.onclick = function (e) { gtfo_Images_Save(this.parentNode.parentNode.parentNode.parentNode.children[0].children[0].src, `gtfo_Image`); e.stopPropagation(); }
 
 		imageButtonBar = getElement('div', 'gtfo-image-buttonbar', null, null);
 		imageButtonBar.appendChild(imageSaveButton);
