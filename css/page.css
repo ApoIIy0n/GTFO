@@ -353,8 +353,9 @@
 #gtfo-image-modal-close {
 	position: absolute;
 	color: #aaaaaa;
-	right: 5px;
-	font-size: 20px;
+	right: -16px;
+	top: -20px;
+	font-size: 18px;
 }
 
 #gtfo-image-modal-close:hover,
