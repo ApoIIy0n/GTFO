@@ -6,6 +6,7 @@ const randomize = (n, r = '') => {
 // set to a fixed string for now because of CSS styling
 var randomString = 'GTFO-BODY';//randomize(Math.floor(Math.random() * (8 - 2 + 1) + 2));
 var originalBackgroundColor, originalBackgroundImage;
+var selectedImages = [];
 
 function removeClassFromElements(className) {
 	const foundElements = document.getElementsByClassName(className);
@@ -216,7 +217,6 @@ async function gtfo_GetCommentsDiv() {
 	var scripts = document.getElementsByTagName('script');
 
 	var scriptResults = [];
-	var response, scriptData;
 	var scriptCommentsCleaned = [];
 
 	pageScripts = { file: 'Page', location: null, comments: [] };
@@ -426,13 +426,27 @@ function gtfo_Images_Modal(show, image = null) {
 
 function gtfo_Images_ToggleActive(input) {
 	console.log(input);
+	// deselect
+	var image = input.firstChild.firstChild.src;
 	if(input.id.includes('selected')) {
 		input.id = input.id.replace("-selected","");
 		input.children[0].id = input.children[0].id.replace("-selected","");
+
+		for(var i = selectedImages.length; i > - 1; i--)
+		{
+			if(selectedImages[i] == image)
+			{
+				selectedImages.splice(i, 1);
+				// we break here, we don't want to delete duplicates
+				break;
+			}
+		}
 	}
+	// select
 	else {
 		input.id = `${input.id}-selected`;
-		input.children[0].id = `${input.children[0].id}-selected`;;
+		input.children[0].id = `${input.children[0].id}-selected`;
+		selectedImages.push(image);
 	}
 }
 
