@@ -287,7 +287,7 @@
 
 #gtfo-image-container-selected,
 #gtfo-image-display-selected {
-	outline-color: red;
+	outline-color: #414141;
 }
 
 [id^="gtfo-image-container"]:hover {

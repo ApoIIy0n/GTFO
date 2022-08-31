@@ -373,20 +373,23 @@ function gtfo_GetUrlsDiv() {
 }
 
 function getBase64Image(img) {
-	var canvas = document.createElement("canvas");
+	var newImage = null;
+	if(img.width > 0) {
+		var canvas = document.createElement("canvas");
 
-	canvas.width = img.naturalWidth ? img.naturalWidth : img.width;
-	canvas.height = img.naturalHeight ? img.naturalHeight : img.height;
+		console.log(`img width:  ${img.naturalWidth} : ${img.width}`);
+		canvas.width = img.naturalWidth ? img.naturalWidth : img.width;
+		canvas.height = img.naturalHeight ? img.naturalHeight : img.height;
 
-	var ctx = canvas.getContext("2d");
-	ctx.drawImage(img, 0, 0);
+		var ctx = canvas.getContext("2d");
+		ctx.drawImage(img, 0, 0);
 
-	var dataURL = canvas.toDataURL("image/png");
-	var dataString = dataURL.replace(/^data:image\/(png|jpg);base64,/, "");
-	var sizeInKiloBytes = (4 * Math.ceil((dataString.length / 3)) * 0.5624896334383812) / 1024;
-	sizeInKiloBytes = Number(Math.round(sizeInKiloBytes + 'e2') + 'e-2');
-	var newImage = { data: dataURL, width: canvas.width, height: canvas.height, size: sizeInKiloBytes };
-
+		var dataURL = canvas.toDataURL("image/png");
+		var dataString = dataURL.replace(/^data:image\/(png|jpg);base64,/, "");
+		var sizeInKiloBytes = (4 * Math.ceil((dataString.length / 3)) * 0.5624896334383812) / 1024;
+		sizeInKiloBytes = Number(Math.round(sizeInKiloBytes + 'e2') + 'e-2');
+		newImage = { data: dataURL, width: canvas.width, height: canvas.height, size: sizeInKiloBytes };
+	}
 	return newImage;
 }
 
@@ -467,14 +470,16 @@ async function gtfo_GetImagesDiv() {
 	for (var i = 0; i < images.length; i++) {
 		imageInfo = getBase64Image(images[i]);
 
-		var addInfo = true;
-		for (var a = 0; a < filteredImages.length; a++) {
-			if (filteredImages[a].data == imageInfo.data)
-				addInfo = false;
-		}
+		if(imageInfo) {
+			var addInfo = true;
+			for (var a = 0; a < filteredImages.length; a++) {
+				if (filteredImages[a].data == imageInfo.data)
+					addInfo = false;
+			}
 
-		if (addInfo)
-			filteredImages.push(imageInfo);
+			if (addInfo)
+				filteredImages.push(imageInfo);
+		}
 	}
 
 	for (var i = 0; i < filteredImages.length; i++) {
