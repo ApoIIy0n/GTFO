@@ -374,7 +374,7 @@ function gtfo_GetUrlsDiv() {
 
 function getBase64Image(img) {
 	var newImage = null;
-	if(img.width > 0) {
+	if (img.width > 0) {
 		var canvas = document.createElement("canvas");
 
 		console.log(`img width:  ${img.naturalWidth} : ${img.width}`);
@@ -396,11 +396,11 @@ function getBase64Image(img) {
 function gtfo_Images_Save(image, fileName) {
 	var link = document.createElement("a");
 
-    document.body.appendChild(link); // for Firefox
+	document.body.appendChild(link); // for Firefox
 
-    link.setAttribute("href", image);
-    link.setAttribute("download", fileName);
-    link.click();
+	link.setAttribute("href", image);
+	link.setAttribute("download", fileName);
+	link.click();
 }
 
 async function gtfo_Images_Copy(base64Data) {
@@ -414,11 +414,10 @@ async function gtfo_Images_Copy(base64Data) {
 
 function gtfo_Images_Modal(show, image = null) {
 	var modal = document.getElementById('gtfo-image-modal');
-	if (show)
-	{
+	if (show) {
 		var modalImage = document.getElementById('gtfo-image-modal-image');
 		modalImage.src = image;
-	
+
 		modal.style.display = 'block';
 	}
 	else
@@ -431,14 +430,12 @@ function gtfo_Images_ToggleActive(input) {
 	console.log(input);
 	// deselect
 	var image = input.firstChild.firstChild.src;
-	if(input.id.includes('selected')) {
-		input.id = input.id.replace("-selected","");
-		input.children[0].id = input.children[0].id.replace("-selected","");
+	if (input.id.includes('selected')) {
+		input.id = input.id.replace("-selected", "");
+		input.children[0].id = input.children[0].id.replace("-selected", "");
 
-		for(var i = selectedImages.length; i > - 1; i--)
-		{
-			if(selectedImages[i] == image)
-			{
+		for (var i = selectedImages.length; i > - 1; i--) {
+			if (selectedImages[i] == image) {
 				selectedImages.splice(i, 1);
 				// we break here, we don't want to delete duplicates
 				break;
@@ -470,7 +467,7 @@ async function gtfo_GetImagesDiv() {
 	for (var i = 0; i < images.length; i++) {
 		imageInfo = getBase64Image(images[i]);
 
-		if(imageInfo) {
+		if (imageInfo) {
 			var addInfo = true;
 			for (var a = 0; a < filteredImages.length; a++) {
 				if (filteredImages[a].data == imageInfo.data)
