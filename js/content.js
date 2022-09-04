@@ -1,3 +1,5 @@
+var debugging = false;
+
 const randomize = (n, r = '') => {
 	while (n--) r += String.fromCharCode((r = Math.random() * 62 | 0, r += r > 9 ? (r < 36 ? 55 : 61) : 48));
 	return r;
@@ -233,7 +235,8 @@ async function gtfo_GetCommentsDiv() {
 					scriptCommentsCleaned = gtfo_GetCommentsFromData(scriptdata);
 				})
 				.catch((error) => {
-					console.log(`Can't load file: ${scripts[i].src}`);
+					if (debugging)
+						console.log(`Can't load file: ${scripts[i].src}`);
 				});
 		}
 		else {
@@ -376,8 +379,7 @@ function getBase64Image(img) {
 	var newImage = null;
 	if (img.width > 0) {
 		var canvas = document.createElement("canvas");
-
-		console.log(`img width:  ${img.naturalWidth} : ${img.width}`);
+		
 		canvas.width = img.naturalWidth ? img.naturalWidth : img.width;
 		canvas.height = img.naturalHeight ? img.naturalHeight : img.height;
 
@@ -422,12 +424,9 @@ function gtfo_Images_Modal(show, image = null) {
 	}
 	else
 		modal.style.display = 'none';
-
-	console.log(image);
 }
 
 function gtfo_Images_ToggleActive(input) {
-	console.log(input);
 	// deselect
 	var image = input.firstChild.firstChild.src;
 	if (input.id.includes('selected')) {
@@ -461,9 +460,36 @@ async function gtfo_GetImagesDiv() {
 	var imageContainer, imagePicture, imageInfo;
 	var imageButtonBar, imageCopyButton, imageSaveButton;
 	var imageDisplayInfo, imageType, imageSize, imageResolution;
+	var filteredImages = [];
+	// get all background images
+	var backgroundImages = document.querySelectorAll('[style*="background"]');
+	for (var i = 0; i < backgroundImages.length; i++) {
+		if (backgroundImages[i].style && backgroundImages[i].style.backgroundImage) {
+			var backgroundImage = backgroundImages[i].style.backgroundImage;
+			if (backgroundImage) {
+				backgroundImageProperties = backgroundImage.split("\"");
+
+				if (backgroundImageProperties.length > 0) {
+					var newImage = new Image;
+					newImage.src = backgroundImageProperties[1];
+
+					imageInfo = getBase64Image(newImage);
+					if (newImage) {
+						var addInfo = true;
+						for (var a = 0; a < filteredImages.length; a++) {
+							if (filteredImages[a].data == imageInfo.data)
+								addInfo = false;
+						}
+			
+						if (addInfo)
+							filteredImages.push(imageInfo);
+					}
+				}
+			}
+		}
+	}
 
 	// filter out the duplicates
-	var filteredImages = [];
 	for (var i = 0; i < images.length; i++) {
 		imageInfo = getBase64Image(images[i]);
 
@@ -602,11 +628,13 @@ async function gtfo_Grabber() {
 }
 
 function onCreated(tab) {
-	console.log(`Created new tab: ${tab.id}`)
+	if (debugging)
+		console.log(`Created new tab: ${tab.id}`)
 }
 
 function onError(error) {
-	console.log(`Error: ${error}`);
+	if (debugging)
+		console.log(`Error: ${error}`);
 }
 
 function gtfo_RightClick() {
