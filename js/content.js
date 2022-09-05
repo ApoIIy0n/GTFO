@@ -379,7 +379,7 @@ function getBase64Image(img) {
 	var newImage = null;
 	if (img.width > 0) {
 		var canvas = document.createElement("canvas");
-		
+
 		canvas.width = img.naturalWidth ? img.naturalWidth : img.width;
 		canvas.height = img.naturalHeight ? img.naturalHeight : img.height;
 
@@ -459,7 +459,7 @@ function gtfo_IsPresentInFilteredImages(item, list) {
 }
 
 function gtfo_IsURL(str) {
-	return /^(?:\w+:)?\/\/([^\s\.]+\.\S{2}|localhost[\:?\d]*)\S*$/.test(str); 
+	return /^(?:\w+:)?\/\/([^\s\.]+\.\S{2}|localhost[\:?\d]*)\S*$/.test(str);
 }
 
 async function gtfo_GetImagesDiv() {
@@ -489,7 +489,7 @@ async function gtfo_GetImagesDiv() {
 						newImage.src = backgroundImageProperties[1];
 
 						imageInfo = getBase64Image(newImage);
-						if (!gtfo_IsPresentInFilteredImages(imageInfo, filteredImages))	{
+						if (!gtfo_IsPresentInFilteredImages(imageInfo, filteredImages)) {
 							filteredImages.push(imageInfo);
 						}
 					}
@@ -501,7 +501,7 @@ async function gtfo_GetImagesDiv() {
 	// filter out the duplicates
 	for (var i = 0; i < images.length; i++) {
 		imageInfo = getBase64Image(images[i]);
-		if (!gtfo_IsPresentInFilteredImages(imageInfo, filteredImages))	{
+		if (!gtfo_IsPresentInFilteredImages(imageInfo, filteredImages)) {
 			filteredImages.push(imageInfo);
 		}
 	}
