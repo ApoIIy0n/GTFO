@@ -449,7 +449,21 @@ function gtfo_Images_ToggleActive(input) {
 	}
 }
 
+function gtfo_IsPresentInFilteredImages(item, list) {
+	for (var i = 0; i < list.length; i++) {
+		if (item.data == list.data) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function gtfo_IsURL(str) {
+	return /^(?:\w+:)?\/\/([^\s\.]+\.\S{2}|localhost[\:?\d]*)\S*$/.test(str); 
+}
+
 async function gtfo_GetImagesDiv() {
+	console.log("gtfo_Grabber() 1"); 
 	var images = document.getElementsByTagName("img");
 
 	var imageNumber = 0;
@@ -461,47 +475,38 @@ async function gtfo_GetImagesDiv() {
 	var imageButtonBar, imageCopyButton, imageSaveButton;
 	var imageDisplayInfo, imageType, imageSize, imageResolution;
 	var filteredImages = [];
+
+	console.log("gtfo_Grabber() 2"); 
 	// get all background images
 	var backgroundImages = document.querySelectorAll('[style*="background"]');
 	for (var i = 0; i < backgroundImages.length; i++) {
 		if (backgroundImages[i].style && backgroundImages[i].style.backgroundImage) {
 			var backgroundImage = backgroundImages[i].style.backgroundImage;
-			if (backgroundImage) {
+			if (backgroundImage && backgroundImage.includes("url")) {
+				console.log(backgroundImage);
 				backgroundImageProperties = backgroundImage.split("\"");
 
 				if (backgroundImageProperties.length > 0) {
-					var newImage = new Image;
-					newImage.src = backgroundImageProperties[1];
+					if (gtfo_IsURL(backgroundImageProperties[1])) {
+						var newImage = new Image;
+						newImage.src = backgroundImageProperties[1];
 
-					imageInfo = getBase64Image(newImage);
-					if (newImage) {
-						var addInfo = true;
-						for (var a = 0; a < filteredImages.length; a++) {
-							if (filteredImages[a].data == imageInfo.data)
-								addInfo = false;
-						}
-			
-						if (addInfo)
+						imageInfo = getBase64Image(newImage);
+						if (!gtfo_IsPresentInFilteredImages(imageInfo, filteredImages))	{
 							filteredImages.push(imageInfo);
+						}
 					}
 				}
 			}
 		}
 	}
 
+	console.log("gtfo_Grabber() 3"); 
 	// filter out the duplicates
 	for (var i = 0; i < images.length; i++) {
 		imageInfo = getBase64Image(images[i]);
-
-		if (imageInfo) {
-			var addInfo = true;
-			for (var a = 0; a < filteredImages.length; a++) {
-				if (filteredImages[a].data == imageInfo.data)
-					addInfo = false;
-			}
-
-			if (addInfo)
-				filteredImages.push(imageInfo);
+		if (!gtfo_IsPresentInFilteredImages(imageInfo, filteredImages))	{
+			filteredImages.push(imageInfo);
 		}
 	}
 
