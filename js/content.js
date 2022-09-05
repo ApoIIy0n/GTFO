@@ -414,16 +414,21 @@ async function gtfo_Images_Copy(base64Data) {
 	//await navigator.clipboard.write([new ClipboardItem({ 'img/png': blob })]);
 }
 
-function gtfo_Images_Modal(show, image = null) {
+function gtfo_Images_Modal(source, show) {
 	var modal = document.getElementById('gtfo-image-modal');
 	if (show) {
-		var modalImage = document.getElementById('gtfo-image-modal-image');
-		modalImage.src = image;
+		if (source.target && source.target.src) {
+			var modalImage = document.getElementById('gtfo-image-modal-image');
+			modalImage.src = source.target.src;
 
-		modal.style.display = 'block';
+			modal.style.display = 'block';
+		}
 	}
-	else
-		modal.style.display = 'none';
+	else {
+		var splittedTarget = source.target.id.split("-");
+		if (splittedTarget.length < 4 || source.target.id.includes('close'))
+			modal.style.display = 'none';
+	}
 }
 
 function gtfo_Images_ToggleActive(input) {
@@ -533,7 +538,7 @@ async function gtfo_GetImagesDiv() {
 		imagePicture.alt = `gtfo_image_${i}`;
 
 		imageDisplay = getElement('div', 'gtfo-image-display', null, null);
-		imageDisplay.onclick = function () { gtfo_Images_Modal(true, this.firstChild.src); }
+		imageDisplay.onclick = function (e) { gtfo_Images_Modal(e, true); }
 		imageDisplay.appendChild(imagePicture);
 
 		// imageinfo
@@ -574,7 +579,6 @@ async function gtfo_GetImagesDiv() {
 	}
 
 	var imageModalClose = getElement('span', 'gtfo-image-modal-close', null, 'X');
-	imageModalClose.onclick = function () { gtfo_Images_Modal(false); }
 	var imadeModalCloseDiv = getElement('div', 'gtfo-image-modal-close-div', null, null);
 	imadeModalCloseDiv.appendChild(imageModalClose);
 
@@ -583,6 +587,7 @@ async function gtfo_GetImagesDiv() {
 	imageModalContent.appendChild(imageModalImage);
 	imageModalContent.appendChild(imadeModalCloseDiv);
 	var imageModal = getElement('div', 'gtfo-image-modal', null, null);
+	imageModal.onclick = function (e) { gtfo_Images_Modal(e, false); }
 	imageModal.appendChild(imageModalContent);
 
 	imagesDiv.appendChild(imageModal);
