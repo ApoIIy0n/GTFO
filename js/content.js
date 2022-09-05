@@ -463,7 +463,6 @@ function gtfo_IsURL(str) {
 }
 
 async function gtfo_GetImagesDiv() {
-	console.log("gtfo_Grabber() 1"); 
 	var images = document.getElementsByTagName("img");
 
 	var imageNumber = 0;
@@ -476,14 +475,12 @@ async function gtfo_GetImagesDiv() {
 	var imageDisplayInfo, imageType, imageSize, imageResolution;
 	var filteredImages = [];
 
-	console.log("gtfo_Grabber() 2"); 
 	// get all background images
 	var backgroundImages = document.querySelectorAll('[style*="background"]');
 	for (var i = 0; i < backgroundImages.length; i++) {
 		if (backgroundImages[i].style && backgroundImages[i].style.backgroundImage) {
 			var backgroundImage = backgroundImages[i].style.backgroundImage;
 			if (backgroundImage && backgroundImage.includes("url")) {
-				console.log(backgroundImage);
 				backgroundImageProperties = backgroundImage.split("\"");
 
 				if (backgroundImageProperties.length > 0) {
@@ -501,7 +498,6 @@ async function gtfo_GetImagesDiv() {
 		}
 	}
 
-	console.log("gtfo_Grabber() 3"); 
 	// filter out the duplicates
 	for (var i = 0; i < images.length; i++) {
 		imageInfo = getBase64Image(images[i]);
