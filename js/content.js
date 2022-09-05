@@ -1,4 +1,5 @@
 var debugging = false;
+var hostName = window.location.host.replace(".","_");
 
 const randomize = (n, r = '') => {
 	while (n--) r += String.fromCharCode((r = Math.random() * 62 | 0, r += r > 9 ? (r < 36 ? 55 : 61) : 48));
@@ -153,7 +154,7 @@ function gtfo_Grabber_Save() {
 	if (selectedItems.length > 0) {
 		let downloadLink = document.createElement('a');
 		downloadLink.href = "data:application/octet-stream," + encodeURIComponent(selectedItems.join('\r\n'));
-		downloadLink.download = `urls_${new Date().getTime()}.txt`;
+		downloadLink.download = `urls_${hostName}_${new Date().getTime()}.txt`;
 		downloadLink.click();
 		document.removeelem
 	}
