@@ -150,12 +150,13 @@ function gtfo_Grabber_Copy() {
 
 function gtfo_Grabber_Save() {
 	var selectedItems = gtfo_Grabber_GetSelectedUrls();
-
-	let downloadLink = document.createElement('a');
-	downloadLink.href = "data:application/octet-stream," + encodeURIComponent(selectedItems.join('\r\n'));
-	downloadLink.download = `urls_${new Date().getTime()}.txt`;
-	downloadLink.click();
-	document.removeelem
+	if (selectedItems.length > 0) {
+		let downloadLink = document.createElement('a');
+		downloadLink.href = "data:application/octet-stream," + encodeURIComponent(selectedItems.join('\r\n'));
+		downloadLink.download = `urls_${new Date().getTime()}.txt`;
+		downloadLink.click();
+		document.removeelem
+	}
 }
 
 function gtfo_GetCommentsFromData(data) {
