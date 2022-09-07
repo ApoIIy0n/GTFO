@@ -382,8 +382,22 @@ function getBase64Image(img) {
 	if (img.width > 0) {
 		var canvas = document.createElement("canvas");
 
-		canvas.width = img.naturalWidth ? img.naturalWidth : img.width;
-		canvas.height = img.naturalHeight ? img.naturalHeight : img.height;
+		/* this belongs to the attempt to fix images original source size not the parametered one.
+		
+		if (img.naturalWidth && img.naturalHeight ) {
+			if(img.src.includes("?")) {
+				var newSrc = img.src.split("?")[0];
+				img.currentSrc = newSrc;
+				img.src = newSrc;
+				console.log("splitted");
+			}
+			canvas.width = img.naturalWidth;
+			canvas.height = img.naturalHeight;
+		} 
+		else*/ {
+			canvas.width = img.width;
+			canvas.height = img.height;
+		}
 
 		var ctx = canvas.getContext("2d");
 		ctx.drawImage(img, 0, 0);
@@ -423,7 +437,7 @@ function gtfo_Images_Modal(source, show) {
 			var modalImage = document.getElementById('gtfo-image-modal-image');
 			modalImage.src = source.target.src;
 
-			modal.style.display = 'block';
+			modal.style.display = 'flex';
 		}
 	}
 	else {
@@ -458,7 +472,7 @@ function gtfo_Images_ToggleActive(input) {
 
 function gtfo_IsPresentInFilteredImages(item, list) {
 	for (var i = 0; i < list.length; i++) {
-		if (item.data == list.data) {
+		if (item.data == list[i].data) {
 			return true;
 		}
 	}
@@ -507,7 +521,16 @@ async function gtfo_GetImagesDiv() {
 
 	// filter out the duplicates
 	for (var i = 0; i < images.length; i++) {
-		imageInfo = getBase64Image(images[i]);
+		// CONTINUE: fix images if they have params...
+		/*if(images[i].src.includes("?")) {
+			var newImage = new Image;
+			newImage.src = images[i].src.split("?")[0];
+
+			imageInfo = getBase64Image(newImage);
+		}
+		else*/ {
+			imageInfo = getBase64Image(images[i]);
+		}
 		if (!gtfo_IsPresentInFilteredImages(imageInfo, filteredImages)) {
 			filteredImages.push(imageInfo);
 		}
