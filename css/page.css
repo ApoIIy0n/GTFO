@@ -326,23 +326,19 @@
 	width: 100%;
 	height: max-content;
 	min-height: 100vh;
-	padding-top: 30px;
 	background-color: rgba(0, 0, 0, 0.4);
+	justify-content: center;
+	align-items: center;
 }
 
 #gtfo-image-modal-content {
 	background-color: rgba(0, 0, 0, 0.4);
 	padding: 20px;
 	border: 1px solid #888;
-	width: fit-content;
+	width: auto;
 	height: auto;
 	display: flex;
-	margin-left: auto;
-	margin-right: auto;
-	margin-bottom: 20px;
 	position: relative;
-	max-width: 90vh;
-	max-height: 90vh;
 }
 
 #gtfo-image-modal-image {
