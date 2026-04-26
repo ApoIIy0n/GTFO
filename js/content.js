@@ -208,26 +208,106 @@ function gtfo_Grabber_Save() {
 }
 
 function gtfo_GetCommentsFromData(data) {
-	const ignoreCharacters = ['\"', '(', '\'', '"'];
-	const regexp = /\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm;
-	var scriptComments = Array.from(data.matchAll(regexp));
+	var source = String(data || '');
 	var scriptCommentsCleaned = [];
-	var firstChar, lastChar, scriptComment;
-	for (let j = 0; j < scriptComments.length; j++) {
-		scriptComment = scriptComments[j].toString();
-		firstChar = scriptComment.charAt(0);
+	var state = 'code';
+	var stringReturnState = 'code';
+	var templateExpressionDepth = 0;
+	var blockCommentStart = 0;
+	var lineCommentStart = 0;
 
-		if (!ignoreCharacters.includes(firstChar)) {
-			scriptComment = scriptComment.replace(/\t/g, '').trim();
-			lastChar = scriptComment.charAt(scriptComment.length - 1);
+	function appendComment(comment) {
+		comment = String(comment || '').replace(/\t/g, '').trim();
+		if (comment.endsWith(','))
+			comment = comment.slice(0, -1);
+		if (comment && !scriptCommentsCleaned.includes(comment))
+			scriptCommentsCleaned.push(comment);
+	}
 
-			if (lastChar == ',')
-				scriptComment = scriptComment.slice(0, -1);
-			// no more duplications
-			if (!scriptCommentsCleaned.includes(scriptComment))
-				scriptCommentsCleaned.push(scriptComment);
+	function isEscaped(index) {
+		var slashCount = 0;
+		for (let scanIndex = index - 1; scanIndex >= 0 && source[scanIndex] == '\\'; scanIndex--)
+			slashCount++;
+		return slashCount % 2 == 1;
+	}
+
+	for (let index = 0; index < source.length; index++) {
+		var character = source[index];
+		var nextCharacter = source[index + 1];
+
+		if (state == 'code') {
+			if (character == '"' || character == "'") {
+				stringReturnState = 'code';
+				state = character;
+			}
+			else if (character == '`')
+				state = 'template';
+			else if (character == '/' && nextCharacter == '/') {
+				lineCommentStart = index;
+				state = 'line-comment';
+				index++;
+			}
+			else if (character == '/' && nextCharacter == '*') {
+				blockCommentStart = index;
+				state = 'block-comment';
+				index++;
+			}
+		}
+		else if (state == '"' || state == "'") {
+			if (character == state && !isEscaped(index))
+				state = stringReturnState;
+		}
+		else if (state == 'template') {
+			if (character == '`' && !isEscaped(index))
+				state = 'code';
+			else if (character == '$' && nextCharacter == '{' && !isEscaped(index)) {
+				templateExpressionDepth = 1;
+				state = 'template-expression';
+				index++;
+			}
+		}
+		else if (state == 'template-expression') {
+			if (character == '"' || character == "'") {
+				stringReturnState = 'template-expression';
+				state = character;
+			}
+			else if (character == '`')
+				state = 'template';
+			else if (character == '{')
+				templateExpressionDepth++;
+			else if (character == '}') {
+				templateExpressionDepth--;
+				if (templateExpressionDepth <= 0)
+					state = 'template';
+			}
+			else if (character == '/' && nextCharacter == '/') {
+				lineCommentStart = index;
+				state = 'line-comment';
+				index++;
+			}
+			else if (character == '/' && nextCharacter == '*') {
+				blockCommentStart = index;
+				state = 'block-comment';
+				index++;
+			}
+		}
+		else if (state == 'line-comment') {
+			if (character == '\n' || character == '\r') {
+				appendComment(source.slice(lineCommentStart, index));
+				state = templateExpressionDepth > 0 ? 'template-expression' : 'code';
+			}
+		}
+		else if (state == 'block-comment') {
+			if (character == '*' && nextCharacter == '/') {
+				appendComment(source.slice(blockCommentStart, index + 2));
+				state = templateExpressionDepth > 0 ? 'template-expression' : 'code';
+				index++;
+			}
 		}
 	}
+
+	if (state == 'line-comment')
+		appendComment(source.slice(lineCommentStart));
 
 	return scriptCommentsCleaned;
 }

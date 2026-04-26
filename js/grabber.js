@@ -71,6 +71,10 @@ function gtfoGetAssetScope(url, pageUrl) {
 	return gtfoGetAssetOrigin(url, pageUrl) == gtfoGetAssetOrigin(pageUrl, pageUrl) ? 'same-origin' : 'third-party';
 }
 
+function gtfoIsPageScriptUrl(url) {
+	return String(url || '').toLowerCase() == 'page';
+}
+
 function gtfoGetCommentGroups(data) {
 	var groups = [];
 	var pageUrl = gtfoGetPageUrl(data);
@@ -96,14 +100,14 @@ function gtfoGetCommentGroups(data) {
 
 	if (Array.isArray(data.js)) {
 		for (let script of data.js) {
-			let scope = gtfoGetAssetScope(script.url, pageUrl);
+			let scope = gtfoIsPageScriptUrl(script.url) ? 'page' : gtfoGetAssetScope(script.url, pageUrl);
 			groups.push({
 				title: `JavaScript: ${script.url || 'Page'}`,
 				source: script.source || '',
 				comments: script.comments || [],
 				sourceType: 'javascript',
 				sourceScope: scope,
-				displayName: scope == 'inline' ? 'Inline Script' : gtfoGetAssetPath(script.url, pageUrl),
+				displayName: scope == 'page' ? '/page' : (scope == 'inline' ? 'Inline Script' : gtfoGetAssetPath(script.url, pageUrl)),
 				url: script.url || ''
 			});
 		}
@@ -1633,6 +1637,7 @@ function gtfoBuildComments(data) {
 		}
 	});
 	appendLanguageRoot(tree, 'JavaScript', jsGroups, (languageList, groupList) => {
+		appendSourceCategory(languageList, 'Page Scripts', groupList.filter((group) => group.sourceScope == 'page'), 'script', 'scripts');
 		appendSourceCategory(languageList, 'Inline Scripts', groupList.filter((group) => group.sourceScope == 'inline'), 'script', 'scripts');
 		appendSourceCategory(languageList, 'Same-Origin Scripts', groupList.filter((group) => group.sourceScope == 'same-origin'), 'script', 'scripts');
 		appendSourceCategory(languageList, 'Third-Party Scripts', groupList.filter((group) => group.sourceScope == 'third-party'), 'script', 'scripts');
