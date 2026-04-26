@@ -185,7 +185,7 @@
 			flex: 0 0 auto;
 		}
 
-		#gtfo-prettify-source {
+		.gtfo-source-action {
 			cursor: pointer;
 			background: transparent;
 			border: 1px solid #777;
@@ -195,10 +195,53 @@
 			white-space: nowrap;
 		}
 
-		#gtfo-prettify-source:hover,
-		#gtfo-prettify-source.gtfo-prettify-active {
+		.gtfo-source-action:hover,
+		.gtfo-source-action:focus-visible,
+		#gtfo-prettify-source.gtfo-prettify-active,
+		.gtfo-selection-dropdown-open .gtfo-source-action {
 			color: red;
 			border-color: red;
+		}
+
+		.gtfo-selection-dropdown {
+			position: relative;
+		}
+
+		#gtfo-selection-export-toggle::after {
+			content: " v";
+		}
+
+		.gtfo-selection-menu {
+			position: absolute;
+			top: calc(100% + 2px);
+			left: 0;
+			display: none;
+			min-width: 100%;
+			background: #1a1a1a;
+			border: 1px solid #777;
+			z-index: 20;
+		}
+
+		.gtfo-selection-dropdown-open .gtfo-selection-menu {
+			display: block;
+		}
+
+		.gtfo-selection-menu button {
+			display: block;
+			width: 100%;
+			padding: 5px 10px;
+			border: 0;
+			background: transparent;
+			color: white;
+			font: 12px Consolas, monospace;
+			text-align: left;
+			white-space: nowrap;
+			cursor: pointer;
+		}
+
+		.gtfo-selection-menu button:hover,
+		.gtfo-selection-menu button:focus-visible {
+			color: red;
 		}
 
 		.gtfo-comment-group h2 {

@@ -539,8 +539,49 @@ function gtfoCreateCommentLayout() {
 	var prettifyButton = document.createElement('button');
 	prettifyButton.type = 'button';
 	prettifyButton.id = 'gtfo-prettify-source';
+	prettifyButton.className = 'gtfo-source-action';
 	prettifyButton.textContent = 'Prettify';
 	sourceActions.appendChild(prettifyButton);
+
+	var selectionMode = document.createElement('div');
+	selectionMode.id = 'gtfo-selection-export-mode';
+	selectionMode.className = 'gtfo-selection-dropdown';
+	selectionMode.dataset.value = 'all';
+	var selectionToggle = document.createElement('button');
+	selectionToggle.type = 'button';
+	selectionToggle.id = 'gtfo-selection-export-toggle';
+	selectionToggle.className = 'gtfo-source-action';
+	selectionToggle.textContent = 'All selected';
+	var selectionMenu = document.createElement('div');
+	selectionMenu.className = 'gtfo-selection-menu';
+	[
+		{ value: 'all', label: 'All selected' },
+		{ value: 'red', label: 'Red' },
+		{ value: 'green', label: 'Green' }
+	].forEach((optionData) => {
+		var option = document.createElement('button');
+		option.type = 'button';
+		option.value = optionData.value;
+		option.textContent = optionData.label;
+		selectionMenu.appendChild(option);
+	});
+	selectionMode.appendChild(selectionToggle);
+	selectionMode.appendChild(selectionMenu);
+	sourceActions.appendChild(selectionMode);
+
+	var copySelectionsButton = document.createElement('button');
+	copySelectionsButton.type = 'button';
+	copySelectionsButton.id = 'gtfo-copy-source-selections';
+	copySelectionsButton.className = 'gtfo-source-action';
+	copySelectionsButton.textContent = 'Copy';
+	sourceActions.appendChild(copySelectionsButton);
+
+	var saveSelectionsButton = document.createElement('button');
+	saveSelectionsButton.type = 'button';
+	saveSelectionsButton.id = 'gtfo-save-source-selections';
+	saveSelectionsButton.className = 'gtfo-source-action';
+	saveSelectionsButton.textContent = 'Save';
+	sourceActions.appendChild(saveSelectionsButton);
 
 	var sourceCode = document.createElement('pre');
 	sourceCode.id = 'gtfo-source-code';
@@ -1007,6 +1048,70 @@ function gtfoBuildComments(data) {
 		sourceResizeObserver.observe(document.getElementById('gtfo-source-panel'));
 	}
 
+	function gtfoGetSourceSelectionText(mode) {
+		var rows = Array.from(document.querySelectorAll('#gtfo-source-code .gtfo-source-line'));
+		var selectedRows = rows.filter((row) => {
+			var isRed = row.classList.contains('gtfo-source-highlight');
+			var isGreen = row.classList.contains('gtfo-source-line-selected');
+
+			if (mode == 'red')
+				return isRed;
+			if (mode == 'green')
+				return isGreen;
+			return isRed || isGreen;
+		});
+
+		return selectedRows.map((row) => {
+			var lineCode = row.querySelector('.gtfo-line-code');
+			return lineCode ? lineCode.textContent : '';
+		}).join('\r\n');
+	}
+
+	function gtfoGetSelectionTimestamp() {
+		var date = new Date();
+		function pad(value) {
+			return String(value).padStart(2, '0');
+		}
+
+		return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+	}
+
+	function gtfoDownloadTextFile(filename, content) {
+		var link = document.createElement('a');
+		link.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(content);
+		link.download = filename;
+		link.click();
+	}
+
+	function gtfoGetSelectionExportMode() {
+		return document.getElementById('gtfo-selection-export-mode').dataset.value || 'all';
+	}
+
+	var selectionDropdown = document.getElementById('gtfo-selection-export-mode');
+	var selectionDropdownToggle = document.getElementById('gtfo-selection-export-toggle');
+	selectionDropdownToggle.addEventListener('click', (event) => {
+		event.stopPropagation();
+		selectionDropdown.classList.toggle('gtfo-selection-dropdown-open');
+	});
+	selectionDropdown.querySelectorAll('.gtfo-selection-menu button').forEach((option) => {
+		option.addEventListener('click', (event) => {
+			event.stopPropagation();
+			selectionDropdown.dataset.value = option.value;
+			selectionDropdownToggle.textContent = option.textContent;
+			selectionDropdown.classList.remove('gtfo-selection-dropdown-open');
+		});
+	});
+	document.addEventListener('click', () => selectionDropdown.classList.remove('gtfo-selection-dropdown-open'));
+
+	document.getElementById('gtfo-copy-source-selections').addEventListener('click', () => {
+		var mode = gtfoGetSelectionExportMode();
+		navigator.clipboard.writeText(gtfoGetSourceSelectionText(mode));
+	});
+	document.getElementById('gtfo-save-source-selections').addEventListener('click', () => {
+		var mode = gtfoGetSelectionExportMode();
+		gtfoDownloadTextFile(`page_selections_${gtfoGetSelectionTimestamp()}.txt`, gtfoGetSourceSelectionText(mode));
+	});
+
 	function gtfoGetSelectedCommentsForGroup(group) {
 		return Array.from(document.querySelectorAll('.gtfo-comment-active'))
 			.filter((item) => item.gtfoGroup == group)
@@ -1254,8 +1359,12 @@ function gtfoBuildComments(data) {
 		section.classList.add('gtfo-comment-group-active');
 		activeGroup = group;
 
+		var wasActive = item.classList.contains('gtfo-comment-active');
 		if (multiSelect) {
 			item.classList.toggle('gtfo-comment-active');
+		}
+		else if (wasActive) {
+			gtfoClearSelections();
 		}
 		else {
 			gtfoClearSelections();
@@ -1264,6 +1373,8 @@ function gtfoBuildComments(data) {
 
 		if (multiSelect)
 			renderSource(group, gtfoGetSelectedCommentsForGroup(group), true, null);
+		else if (wasActive)
+			renderSource(group, [], true, null);
 		else
 			renderSource(group, gtfoGetSelectedCommentsForGroup(group), false, comment);
 	}
