@@ -8,6 +8,36 @@ const randomize = (n, r = '') => {
 
 console.log(`hostName: ${hostName}`);
 
+function handleMutations(mutations) {
+	mutations.forEach(function(mutation) {
+		if (mutation.target.id == 'overlay')
+		{
+			if (window.location.hostname === 'www.nzbserver.com') {
+				var elements = document.getElementsByClassName('nzbDownloadButton');
+				var elementsArray = Array.from(elements);
+				elementsArray.forEach(function(element) {
+					if (!element.hasAttribute('touched'))
+					{
+						if (!element.hasAttribute('GTFO'))
+						{
+							element.setAttribute('GTFO', true);
+							var href = element.getAttribute('href');
+							element.setAttribute('href', href.replace('nzbserver', 'clubnzb'));
+						}
+					}
+				});
+			}
+		}
+	});
+  }
+  
+// Create a MutationObserver
+var observer = new MutationObserver(handleMutations);
+
+// Configure the observer to watch for changes in the entire document
+var observerConfig = { childList: true, subtree: true };
+observer.observe(document, observerConfig);
+
 // set to a fixed string for now because of CSS styling
 var randomString = 'GTFO-BODY';//randomize(Math.floor(Math.random() * (8 - 2 + 1) + 2));
 var originalBackgroundColor, originalBackgroundImage;
@@ -108,8 +138,12 @@ function getPageDiv(name, style, innerhtml) {
 
 	if (style)
 		pageDiv.setAttribute('style', style);
-	if (innerhtml)
-		pageDiv.innerHTML = innerhtml;
+	if (innerhtml) {
+		var iframe = getElement('iframe', null, null, null);
+		iframe.setAttribute('sandbox', '');
+		iframe.srcdoc = innerhtml;
+		pageDiv.appendChild(iframe);
+	}
 
 	return pageDiv;
 }
@@ -766,8 +800,89 @@ function gtfo_GetReportHtml(data) {
 			return Array.from(document.querySelectorAll('.gtfo-url-input:checked')).map((input) => input.value);
 		}
 
+		function clearElement(element) {
+			element.replaceChildren();
+		}
+
+		function appendReportMeta(container, title, url) {
+			clearElement(container);
+
+			const strong = document.createElement('strong');
+			strong.textContent = title || '';
+
+			const link = document.createElement('a');
+			link.href = url || '#';
+			link.textContent = url || '';
+
+			container.appendChild(strong);
+			container.append(' - ');
+			container.appendChild(link);
+		}
+
+		function createToolButton(id, text) {
+			const button = document.createElement('button');
+			button.className = 'gtfo-tool-button';
+			button.id = id;
+			button.type = 'button';
+			button.textContent = text;
+			return button;
+		}
+
+		function createUrlToolbar() {
+			const toolbar = document.createElement('div');
+			toolbar.id = 'gtfo-urls-toolbar';
+
+			toolbar.appendChild(createToolButton('gtfo-copy-urls', 'Copy'));
+			toolbar.appendChild(createToolButton('gtfo-save-urls', 'Save'));
+
+			const label = document.createElement('label');
+			const checkbox = document.createElement('input');
+			checkbox.type = 'checkbox';
+			checkbox.id = 'gtfo-select-all';
+			label.appendChild(checkbox);
+			label.append(' Select all');
+
+			toolbar.appendChild(label);
+			return toolbar;
+		}
+
+		function createUrlRow(url, index, total) {
+			const row = document.createElement('div');
+			row.className = 'gtfo-url-row';
+
+			const input = document.createElement('input');
+			input.className = 'gtfo-url-input';
+			input.type = 'checkbox';
+			input.value = url;
+
+			const link = document.createElement('a');
+			link.href = url;
+			link.textContent = String(index + 1).padStart(String(total).length, '0') + ': ' + url;
+
+			row.appendChild(input);
+			row.appendChild(link);
+			return row;
+		}
+
+		function appendImageCard(parent, image) {
+			const card = document.createElement('div');
+			card.className = 'gtfo-image-card';
+
+			const img = document.createElement('img');
+			img.src = image;
+			img.alt = '';
+
+			const link = document.createElement('a');
+			link.href = image;
+			link.textContent = image;
+
+			card.appendChild(img);
+			card.appendChild(link);
+			parent.appendChild(card);
+		}
+
 		function buildPage() {
-			document.getElementById('gtfo-report-meta').innerHTML = '<strong>' + escapeHtml(data.title || data.host) + '</strong> - <a href="' + escapeHtml(data.url) + '">' + escapeHtml(data.url) + '</a>';
+			appendReportMeta(document.getElementById('gtfo-report-meta'), data.title || data.host, data.url);
 
 			const page = document.getElementById('Page');
 			const iframe = document.createElement('iframe');
@@ -778,16 +893,10 @@ function gtfo_GetReportHtml(data) {
 
 		function buildUrls() {
 			const urls = document.getElementById('Urls');
-			const toolbar = document.createElement('div');
-			toolbar.id = 'gtfo-urls-toolbar';
-			toolbar.innerHTML = '<button class="gtfo-tool-button" id="gtfo-copy-urls">Copy</button><button class="gtfo-tool-button" id="gtfo-save-urls">Save</button><label><input type="checkbox" id="gtfo-select-all"> Select all</label>';
-			urls.appendChild(toolbar);
+			urls.appendChild(createUrlToolbar());
 
 			data.urls.forEach((url, index) => {
-				const row = document.createElement('div');
-				row.className = 'gtfo-url-row';
-				row.innerHTML = '<input class="gtfo-url-input" type="checkbox" value="' + escapeHtml(url) + '"><a href="' + escapeHtml(url) + '">' + String(index + 1).padStart(String(data.urls.length).length, '0') + ': ' + escapeHtml(url) + '</a>';
-				urls.appendChild(row);
+				urls.appendChild(createUrlRow(url, index, data.urls.length));
 			});
 
 			document.getElementById('gtfo-select-all').addEventListener('change', (event) => {
@@ -812,7 +921,11 @@ function gtfo_GetReportHtml(data) {
 			groups.forEach((group) => {
 				const section = document.createElement('section');
 				section.className = 'gtfo-comment-group';
-				section.innerHTML = '<h2>' + escapeHtml(group.title) + '</h2>';
+
+				const heading = document.createElement('h2');
+				heading.textContent = group.title;
+				section.appendChild(heading);
+
 				const list = document.createElement('ul');
 				group.items.forEach((item) => {
 					const li = document.createElement('li');
@@ -830,10 +943,7 @@ function gtfo_GetReportHtml(data) {
 			grid.className = 'gtfo-image-grid';
 
 			data.images.forEach((image) => {
-				const card = document.createElement('div');
-				card.className = 'gtfo-image-card';
-				card.innerHTML = '<img src="' + escapeHtml(image) + '" alt=""><a href="' + escapeHtml(image) + '">' + escapeHtml(image) + '</a>';
-				grid.appendChild(card);
+				appendImageCard(grid, image);
 			});
 
 			images.appendChild(grid);
@@ -1033,7 +1143,10 @@ async function gtfo_Grabber() {
 		}
 
 		// add old body
-		newBody.appendChild(getPageDiv('Page', null, document.body.innerHTML));
+		var pageTab = getPageDiv('Page', null, null);
+		while (document.body.firstChild)
+			pageTab.appendChild(document.body.firstChild);
+		newBody.appendChild(pageTab);
 		document.body = newBody;
 	}
 	else {

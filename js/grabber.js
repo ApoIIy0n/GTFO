@@ -107,6 +107,70 @@ function gtfoHighlightSyntax(line, sourceType) {
 	return gtfoEscapeHtml(line);
 }
 
+
+function gtfoDecodeHtmlEntity(entity) {
+	var namedEntities = {
+		amp: '&',
+		lt: '<',
+		gt: '>',
+		quot: '"',
+		apos: "'",
+		nbsp: '\u00a0'
+	};
+
+	if (entity[1] == '#') {
+		var isHex = entity[2] == 'x' || entity[2] == 'X';
+		var codePoint = parseInt(entity.slice(isHex ? 3 : 2, -1), isHex ? 16 : 10);
+
+		if (Number.isFinite(codePoint))
+			return String.fromCodePoint(codePoint);
+
+		return entity;
+	}
+
+	var name = entity.slice(1, -1);
+	return Object.prototype.hasOwnProperty.call(namedEntities, name) ? namedEntities[name] : entity;
+}
+
+function gtfoAppendHighlightedHtml(parent, html) {
+	var stack = [parent];
+	var tokenPattern = /<\/span>|<span\s+class="([^"]*)">|&(?:#\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);|[^<&]+|[<&]/g;
+	var match;
+
+	while ((match = tokenPattern.exec(String(html || ''))) !== null) {
+		var token = match[0];
+		var current = stack[stack.length - 1];
+
+		if (token == '</span>') {
+			if (stack.length > 1)
+				stack.pop();
+			else
+				current.appendChild(document.createTextNode(token));
+		}
+		else if (token.startsWith('<span')) {
+			var classes = String(match[1] || '')
+				.split(/\s+/)
+				.filter((className) => /^hljs[-_a-zA-Z0-9]*$/.test(className));
+
+			if (classes.length > 0) {
+				var span = document.createElement('span');
+				span.className = classes.join(' ');
+				current.appendChild(span);
+				stack.push(span);
+			}
+		}
+		else if (token[0] == '&')
+			current.appendChild(document.createTextNode(gtfoDecodeHtmlEntity(token)));
+		else
+			current.appendChild(document.createTextNode(token));
+	}
+}
+
+function gtfoSetHighlightedSyntax(element, html) {
+	element.replaceChildren();
+	gtfoAppendHighlightedHtml(element, html || ' ');
+}
+
 function gtfoGetCommentLines(comment, sourceType) {
 	return String(comment || '')
 		.split(/\r?\n/)
@@ -389,6 +453,164 @@ function gtfoSelectedUrls() {
 	return Array.from(document.querySelectorAll('.gtfo-url-input:checked')).map((input) => input.value);
 }
 
+function gtfoClearElement(element) {
+	element.replaceChildren();
+}
+
+function gtfoAppendReportMeta(container, title, url) {
+	gtfoClearElement(container);
+
+	var strong = document.createElement('strong');
+	strong.textContent = title || '';
+
+	var link = document.createElement('a');
+	link.href = url || '#';
+	link.textContent = url || '';
+
+	container.appendChild(strong);
+	container.append(' - ');
+	container.appendChild(link);
+}
+
+function gtfoCreateToolButton(id, text) {
+	var button = document.createElement('button');
+	button.className = 'gtfo-tool-button';
+	button.id = id;
+	button.type = 'button';
+	button.textContent = text;
+	return button;
+}
+
+function gtfoCreateUrlToolbar() {
+	var toolbar = document.createElement('div');
+	toolbar.id = 'gtfo-urls-toolbar';
+
+	toolbar.appendChild(gtfoCreateToolButton('gtfo-copy-urls', 'Copy'));
+	toolbar.appendChild(gtfoCreateToolButton('gtfo-save-urls', 'Save'));
+
+	var label = document.createElement('label');
+	var checkbox = document.createElement('input');
+	checkbox.type = 'checkbox';
+	checkbox.id = 'gtfo-select-all';
+	label.appendChild(checkbox);
+	label.append(' Select all');
+
+	toolbar.appendChild(label);
+	return toolbar;
+}
+
+function gtfoCreateUrlRow(url, index, total) {
+	var row = document.createElement('div');
+	row.className = 'gtfo-url-row';
+
+	var input = document.createElement('input');
+	input.className = 'gtfo-url-input';
+	input.type = 'checkbox';
+	input.value = url;
+
+	var link = document.createElement('a');
+	link.href = url;
+	link.textContent = `${String(index + 1).padStart(String(total).length, '0')}: ${url}`;
+
+	row.appendChild(input);
+	row.appendChild(link);
+	return row;
+}
+
+function gtfoCreateCommentLayout() {
+	var layout = document.createElement('div');
+	layout.id = 'gtfo-comments-layout';
+
+	var nav = document.createElement('div');
+	nav.id = 'gtfo-comments-nav';
+
+	var sourcePanel = document.createElement('div');
+	sourcePanel.id = 'gtfo-source-panel';
+
+	var sourceTitle = document.createElement('div');
+	sourceTitle.id = 'gtfo-source-title';
+
+	var sourceTitleText = document.createElement('span');
+	sourceTitleText.id = 'gtfo-source-title-text';
+
+	var sourceActions = document.createElement('label');
+	sourceActions.id = 'gtfo-source-actions';
+
+	var prettifyInput = document.createElement('input');
+	prettifyInput.type = 'checkbox';
+	prettifyInput.id = 'gtfo-prettify-source';
+	sourceActions.appendChild(prettifyInput);
+	sourceActions.append(' Prettify');
+
+	var sourceCode = document.createElement('pre');
+	sourceCode.id = 'gtfo-source-code';
+
+	sourceTitle.appendChild(sourceTitleText);
+	sourceTitle.appendChild(sourceActions);
+	sourcePanel.appendChild(sourceTitle);
+	sourcePanel.appendChild(sourceCode);
+	layout.appendChild(nav);
+	layout.appendChild(sourcePanel);
+
+	return layout;
+}
+
+function gtfoAppendImageCard(parent, image) {
+	var card = document.createElement('div');
+	card.className = 'gtfo-image-card';
+
+	var img = document.createElement('img');
+	img.src = image;
+	img.alt = '';
+
+	var link = document.createElement('a');
+	link.href = image;
+	link.textContent = image;
+
+	card.appendChild(img);
+	card.appendChild(link);
+	parent.appendChild(card);
+}
+
+function gtfoCreateImagesLayout() {
+	var layout = document.createElement('div');
+	layout.id = 'gtfo-images-layout';
+
+	var toolbar = document.createElement('div');
+	toolbar.id = 'gtfo-images-toolbar';
+
+	var stage = document.createElement('div');
+	stage.id = 'gtfo-images-stage';
+
+	var previousButton = document.createElement('button');
+	previousButton.className = 'gtfo-image-nav-button gtfo-image-nav-prev';
+	previousButton.id = 'gtfo-images-prev';
+	previousButton.type = 'button';
+	previousButton.textContent = '<';
+
+	var grid = document.createElement('div');
+	grid.className = 'gtfo-image-grid';
+	grid.id = 'gtfo-image-grid';
+
+	var nextButton = document.createElement('button');
+	nextButton.className = 'gtfo-image-nav-button gtfo-image-nav-next';
+	nextButton.id = 'gtfo-images-next';
+	nextButton.type = 'button';
+	nextButton.textContent = '>';
+
+	var pages = document.createElement('div');
+	pages.id = 'gtfo-images-pages';
+
+	stage.appendChild(previousButton);
+	stage.appendChild(grid);
+	stage.appendChild(nextButton);
+	layout.appendChild(toolbar);
+	layout.appendChild(stage);
+	layout.appendChild(pages);
+
+	return layout;
+}
+
 function gtfoBuildPage(data) {
 	var page = document.getElementById('Page');
 	var iframe = document.createElement('iframe');
@@ -400,16 +622,10 @@ function gtfoBuildPage(data) {
 function gtfoBuildUrls(data) {
 	var urls = gtfoGetUrls(data);
 	var urlContainer = document.getElementById('Urls');
-	var toolbar = document.createElement('div');
-	toolbar.id = 'gtfo-urls-toolbar';
-	toolbar.innerHTML = '<button class="gtfo-tool-button" id="gtfo-copy-urls">Copy</button><button class="gtfo-tool-button" id="gtfo-save-urls">Save</button><label><input type="checkbox" id="gtfo-select-all"> Select all</label>';
-	urlContainer.appendChild(toolbar);
+	urlContainer.appendChild(gtfoCreateUrlToolbar());
 
 	urls.forEach((url, index) => {
-		var row = document.createElement('div');
-		row.className = 'gtfo-url-row';
-		row.innerHTML = '<input class="gtfo-url-input" type="checkbox" value="' + gtfoEscapeHtml(url) + '"><a href="' + gtfoEscapeHtml(url) + '">' + String(index + 1).padStart(String(urls.length).length, '0') + ': ' + gtfoEscapeHtml(url) + '</a>';
-		urlContainer.appendChild(row);
+		urlContainer.appendChild(gtfoCreateUrlRow(url, index, urls.length));
 	});
 
 	document.getElementById('gtfo-select-all').addEventListener('change', (event) => {
@@ -432,7 +648,8 @@ function gtfoBuildComments(data) {
 	var prettifySource = false;
 	var foldedLinesBySource = new Map();
 
-	comments.innerHTML = '<div id="gtfo-comments-layout"><div id="gtfo-comments-nav"></div><div id="gtfo-source-panel"><div id="gtfo-source-title"><span id="gtfo-source-title-text"></span><label id="gtfo-source-actions"><input type="checkbox" id="gtfo-prettify-source"> Prettify</label></div><pre id="gtfo-source-code"></pre></div></div>';
+	gtfoClearElement(comments);
+	comments.appendChild(gtfoCreateCommentLayout());
 
 	var nav = document.getElementById('gtfo-comments-nav');
 	document.getElementById('gtfo-prettify-source').addEventListener('change', (event) => {
@@ -481,7 +698,7 @@ function gtfoBuildComments(data) {
 		}
 
 		sourceTitle.textContent = group.title;
-		sourceCode.innerHTML = '';
+		gtfoClearElement(sourceCode);
 
 		function applyFoldVisibility() {
 			var rows = sourceCode.querySelectorAll('.gtfo-source-line');
@@ -550,7 +767,7 @@ function gtfoBuildComments(data) {
 
 			var lineCode = document.createElement('span');
 			lineCode.className = 'gtfo-line-code';
-			lineCode.innerHTML = gtfoHighlightSyntax(line, sourceType) || ' ';
+			gtfoSetHighlightedSyntax(lineCode, gtfoHighlightSyntax(line, sourceType) || ' ');
 
 			lineElement.appendChild(lineNumber);
 			lineElement.appendChild(lineCode);
@@ -613,8 +830,10 @@ function gtfoBuildComments(data) {
 	for (let group of groups) {
 		let section = document.createElement('section');
 		section.className = 'gtfo-comment-group';
-		section.innerHTML = '<h2>' + gtfoEscapeHtml(group.title) + '</h2>';
-		section.querySelector('h2').addEventListener('click', () => setActiveGroup(section, group));
+		let heading = document.createElement('h2');
+		heading.textContent = group.title;
+		heading.addEventListener('click', () => setActiveGroup(section, group));
+		section.appendChild(heading);
 
 		let list = document.createElement('ul');
 		list.className = 'gtfo-comment-list';
@@ -672,11 +891,16 @@ function gtfoBuildImages(data) {
 	var showAllImages = false;
 
 	if (imageList.length == 0) {
-		images.innerHTML = '<div class="gtfo-images-empty">No images found</div>';
+		gtfoClearElement(images);
+		var empty = document.createElement('div');
+		empty.className = 'gtfo-images-empty';
+		empty.textContent = 'No images found';
+		images.appendChild(empty);
 		return;
 	}
 
-	images.innerHTML = '<div id="gtfo-images-layout"><div id="gtfo-images-toolbar"></div><div id="gtfo-images-stage"><button class="gtfo-image-nav-button gtfo-image-nav-prev" id="gtfo-images-prev" type="button">&lt;</button><div class="gtfo-image-grid" id="gtfo-image-grid"></div><button class="gtfo-image-nav-button gtfo-image-nav-next" id="gtfo-images-next" type="button">&gt;</button></div><div id="gtfo-images-pages"></div></div>';
+	gtfoClearElement(images);
+	images.appendChild(gtfoCreateImagesLayout());
 
 	var toolbar = document.getElementById('gtfo-images-toolbar');
 	var grid = document.getElementById('gtfo-image-grid');
@@ -690,7 +914,7 @@ function gtfoBuildImages(data) {
 	}
 
 	function renderToolbar() {
-		toolbar.innerHTML = '';
+		gtfoClearElement(toolbar);
 
 		for (let gridSize of gridSizes) {
 			var button = document.createElement('button');
@@ -718,7 +942,7 @@ function gtfoBuildImages(data) {
 	}
 
 	function renderPages(pageCount) {
-		pages.innerHTML = '';
+		gtfoClearElement(pages);
 
 		if (pageCount <= 1)
 			return;
@@ -750,17 +974,14 @@ function gtfoBuildImages(data) {
 		activePage = Math.min(activePage, pageCount - 1);
 		var shownImages = showAllImages ? imageList : imageList.slice(activePage * imagesPerPage, (activePage + 1) * imagesPerPage);
 
-		grid.innerHTML = '';
+		gtfoClearElement(grid);
 		layout.classList.toggle('gtfo-images-show-all', showAllImages);
 		grid.style.gridTemplateColumns = `repeat(${activeGridSize.columns}, minmax(0, 1fr))`;
 		grid.style.gridTemplateRows = showAllImages ? 'none' : `repeat(${activeGridSize.rows}, minmax(0, 1fr))`;
 		grid.style.gridAutoRows = showAllImages ? `calc((100% - ${8 * (activeGridSize.rows - 1)}px) / ${activeGridSize.rows})` : '';
 
 		for (let image of shownImages) {
-			var card = document.createElement('div');
-			card.className = 'gtfo-image-card';
-			card.innerHTML = '<img src="' + gtfoEscapeHtml(image) + '" alt=""><a href="' + gtfoEscapeHtml(image) + '">' + gtfoEscapeHtml(image) + '</a>';
-			grid.appendChild(card);
+			gtfoAppendImageCard(grid, image);
 		}
 
 		renderToolbar();
@@ -782,7 +1003,7 @@ function gtfoRender(data) {
 
 	document.title = `GTFO: ${host}`;
 	document.getElementById('gtfo_embedded_data').value = JSON.stringify(data);
-	document.getElementById('gtfo-report-meta').innerHTML = '<strong>' + gtfoEscapeHtml(host) + '</strong> - <a href="' + gtfoEscapeHtml(pageUrl) + '">' + gtfoEscapeHtml(pageUrl) + '</a>';
+	gtfoAppendReportMeta(document.getElementById('gtfo-report-meta'), host, pageUrl);
 
 	document.querySelectorAll('.gtfo-tab-button').forEach((button) => {
 		button.addEventListener('click', () => gtfoSwitchTab(button.dataset.tab));
