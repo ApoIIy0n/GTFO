@@ -33,7 +33,7 @@ function gtfoGetUrls(data) {
 		urls = urls.concat(data.css.map((item) => item.url));
 
 	if (Array.isArray(data.images))
-		urls = urls.concat(data.images);
+		urls = urls.concat(data.images.map((image) => gtfoGetImageUrl(image)));
 
 	urls = urls.filter((url) => !!url);
 	urls = [...new Set(urls)];
@@ -555,21 +555,127 @@ function gtfoCreateCommentLayout() {
 	return layout;
 }
 
-function gtfoAppendImageCard(parent, image) {
+function gtfoGetImageUrl(image) {
+	return typeof image == 'string' ? image : image.url || image.src || '';
+}
+
+function gtfoGetImageExtensionFromUrl(url) {
+	try {
+		var pathname = new URL(url, gtfoGetPageUrl(JSON.parse(document.getElementById('gtfo_embedded_data').value || '{}'))).pathname;
+		var name = pathname.split('/').pop() || '';
+		var match = name.match(/\.([a-z0-9]{2,5})$/i);
+		return match ? match[1].toLowerCase() : '';
+	}
+	catch (error) {
+		var cleanUrl = String(url || '').split('?')[0].split('#')[0];
+		var match = cleanUrl.match(/\.([a-z0-9]{2,5})$/i);
+		return match ? match[1].toLowerCase() : '';
+	}
+}
+
+function gtfoGetImageType(image) {
+	var type = typeof image == 'string' ? '' : String(image.type || '').trim();
+	if (type.startsWith('image/'))
+		return type.slice(6).toLowerCase().replace('jpeg', 'jpg');
+
+	if (/^[a-z0-9]{2,5}$/i.test(type))
+		return type.toLowerCase();
+
+	return gtfoGetImageExtensionFromUrl(gtfoGetImageUrl(image)) || 'image';
+}
+
+function gtfoGetImageFileNameFromUrl(url) {
+	try {
+		var pathname = new URL(url, gtfoGetPageUrl(JSON.parse(document.getElementById('gtfo_embedded_data').value || '{}'))).pathname;
+		return decodeURIComponent(pathname.split('/').pop() || '');
+	}
+	catch (error) {
+		return decodeURIComponent(String(url || '').split('?')[0].split('#')[0].split('/').pop() || '');
+	}
+}
+
+function gtfoSanitizeFileName(value) {
+	return String(value || '')
+		.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+		.replace(/\s+/g, '_')
+		.replace(/^_+|_+$/g, '')
+		.slice(0, 180);
+}
+
+function gtfoGetImageDisplayName(image, fallbackName) {
+	var explicitName = typeof image == 'string' ? '' : String(image.name || '').trim();
+	var urlName = gtfoGetImageFileNameFromUrl(gtfoGetImageUrl(image));
+	return gtfoSanitizeFileName(explicitName || urlName || fallbackName);
+}
+
+function gtfoEnsureImageExtension(fileName, type) {
+	if (/\.[a-z0-9]{2,5}$/i.test(fileName))
+		return fileName;
+
+	return `${fileName}.${type || 'img'}`;
+}
+
+function gtfoGetImageDimensions(image) {
+	if (typeof image == 'string')
+		return '';
+
+	if (image.width && image.height)
+		return `${image.width} x ${image.height}`;
+
+	return '';
+}
+
+function gtfoBuildImageDownloadName(host, imageInfo) {
+	var type = gtfoGetImageType(imageInfo.image);
+	var fileName = gtfoEnsureImageExtension(imageInfo.name, type);
+	return `${gtfoSanitizeFileName(host || 'website')}_${fileName}`;
+}
+
+function gtfoAppendImageCard(parent, imageInfo) {
+	var image = imageInfo.image;
+	var imageUrl = gtfoGetImageUrl(image);
 	var card = document.createElement('div');
 	card.className = 'gtfo-image-card';
 
+	var input = document.createElement('input');
+	input.className = 'gtfo-image-select';
+	input.type = 'checkbox';
+	input.value = String(imageInfo.index);
+
 	var img = document.createElement('img');
-	img.src = image;
+	img.src = imageUrl;
 	img.alt = '';
+	img.addEventListener('load', () => {
+		if (!imageInfo.dimensions && img.naturalWidth && img.naturalHeight) {
+			imageInfo.dimensions = `${img.naturalWidth} x ${img.naturalHeight}`;
+			var dimensions = card.querySelector('.gtfo-image-dimensions');
+			if (dimensions)
+				dimensions.textContent = imageInfo.dimensions;
+		}
+	});
 
+	var meta = document.createElement('div');
+	meta.className = 'gtfo-image-meta';
 	var link = document.createElement('a');
-	link.href = image;
-	link.textContent = image;
+	link.href = imageUrl;
+	link.textContent = imageInfo.name;
 
+	var dimensions = document.createElement('span');
+	dimensions.className = 'gtfo-image-dimensions';
+	dimensions.textContent = imageInfo.dimensions || 'loading dimensions';
+
+	var type = document.createElement('span');
+	type.textContent = gtfoGetImageType(image);
+
+	input.checked = !!imageInfo.selected;
+	meta.appendChild(link);
+	meta.appendChild(dimensions);
+	meta.appendChild(type);
+	card.appendChild(input);
 	card.appendChild(img);
-	card.appendChild(link);
+	card.appendChild(meta);
 	parent.appendChild(card);
+	return card;
 }
 
 function gtfoCreateImagesLayout() {
@@ -878,7 +984,29 @@ function gtfoBuildComments(data) {
 
 function gtfoBuildImages(data) {
 	var images = document.getElementById('Images');
-	var imageList = data.images || [];
+	var unnamedImageCount = 0;
+	var host = gtfoGetHost(data).replace(/[^a-z0-9_-]/gi, '_');
+	var imageList = (data.images || []).map((image, index) => {
+		var url = gtfoGetImageUrl(image);
+		var urlName = gtfoGetImageFileNameFromUrl(url);
+		var fallbackName = '';
+
+		if (!urlName) {
+			unnamedImageCount++;
+			fallbackName = String(unnamedImageCount).padStart(3, '0');
+		}
+
+		var name = gtfoGetImageDisplayName(image, fallbackName || String(index + 1).padStart(3, '0'));
+		var type = gtfoGetImageType(image);
+
+		return {
+			image: image,
+			index: index,
+			url: url,
+			name: gtfoEnsureImageExtension(name, type),
+			dimensions: gtfoGetImageDimensions(image)
+		};
+	});
 	var gridSizes = [
 		{ label: '1x1', columns: 1, rows: 1 },
 		{ label: '3x3', columns: 3, rows: 3 },
@@ -939,6 +1067,31 @@ function gtfoBuildImages(data) {
 			renderImages();
 		});
 		toolbar.appendChild(showAllButton);
+
+		var actions = document.createElement('div');
+		actions.id = 'gtfo-images-actions';
+
+		var selectAllLabel = document.createElement('label');
+		var selectAll = document.createElement('input');
+		selectAll.type = 'checkbox';
+		selectAll.id = 'gtfo-select-all-images';
+		selectAll.checked = imageList.every((imageInfo) => imageInfo.selected);
+		selectAll.addEventListener('change', (event) => {
+			imageList.forEach((imageInfo) => imageInfo.selected = event.target.checked);
+			renderImages();
+		});
+		selectAllLabel.appendChild(selectAll);
+		selectAllLabel.append(' Select all');
+
+		var downloadButton = document.createElement('button');
+		downloadButton.className = 'gtfo-image-download-button';
+		downloadButton.type = 'button';
+		downloadButton.textContent = 'Download selected';
+		downloadButton.addEventListener('click', () => gtfoDownloadSelectedImages());
+
+		actions.appendChild(selectAllLabel);
+		actions.appendChild(downloadButton);
+		toolbar.appendChild(actions);
 	}
 
 	function renderPages(pageCount) {
@@ -980,8 +1133,14 @@ function gtfoBuildImages(data) {
 		grid.style.gridTemplateRows = showAllImages ? 'none' : `repeat(${activeGridSize.rows}, minmax(0, 1fr))`;
 		grid.style.gridAutoRows = showAllImages ? `calc((100% - ${8 * (activeGridSize.rows - 1)}px) / ${activeGridSize.rows})` : '';
 
-		for (let image of shownImages) {
-			gtfoAppendImageCard(grid, image);
+		for (let imageInfo of shownImages) {
+			var card = gtfoAppendImageCard(grid, imageInfo);
+			card.querySelector('.gtfo-image-select').addEventListener('change', (event) => {
+				imageInfo.selected = event.target.checked;
+				var selectAll = document.getElementById('gtfo-select-all-images');
+				if (selectAll)
+					selectAll.checked = imageList.every((item) => item.selected);
+			});
 		}
 
 		renderToolbar();
@@ -993,6 +1152,36 @@ function gtfoBuildImages(data) {
 
 	previousButton.addEventListener('click', () => goToImagePage(activePage - 1));
 	nextButton.addEventListener('click', () => goToImagePage(activePage + 1));
+
+	async function gtfoDownloadImage(imageInfo) {
+		var downloadName = gtfoBuildImageDownloadName(host, imageInfo);
+		var link = document.createElement('a');
+		link.download = downloadName;
+
+		try {
+			var response = await fetch(imageInfo.url);
+			if (!response.ok)
+				throw new Error(`HTTP ${response.status}`);
+
+			var blob = await response.blob();
+			var objectUrl = URL.createObjectURL(blob);
+			link.href = objectUrl;
+			link.click();
+			setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+		}
+		catch (error) {
+			console.warn('GTFO image download fallback used.', error);
+			link.href = imageInfo.url;
+			link.click();
+		}
+	}
+
+	async function gtfoDownloadSelectedImages() {
+		var selectedImages = imageList.filter((imageInfo) => imageInfo.selected);
+
+		for (let imageInfo of selectedImages)
+			await gtfoDownloadImage(imageInfo);
+	}
 
 	renderImages();
 }

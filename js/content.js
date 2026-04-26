@@ -598,19 +598,46 @@ function gtfo_GetUrlList() {
 
 function gtfo_GetImageList() {
 	var images = [];
+	var imageUrls = [];
+
+	function getImageTypeFromUrl(url) {
+		var cleanUrl = String(url || '').split('?')[0].split('#')[0];
+		var match = cleanUrl.match(/\.([a-z0-9]{2,5})$/i);
+		return match ? match[1].toLowerCase() : '';
+	}
+
+	function addImage(image) {
+		if (!image.url || imageUrls.includes(image.url))
+			return;
+
+		imageUrls.push(image.url);
+		images.push(image);
+	}
 
 	for (let image of document.images) {
 		var source = image.currentSrc || image.src;
-		if (source && !images.includes(source))
-			images.push(source);
+		if (source)
+			addImage({
+				url: source,
+				name: image.getAttribute('download') || image.getAttribute('alt') || image.getAttribute('title') || '',
+				width: image.naturalWidth || image.width || null,
+				height: image.naturalHeight || image.height || null,
+				type: getImageTypeFromUrl(source)
+			});
 	}
 
 	var backgroundImages = document.querySelectorAll('[style*="background"]');
 	for (let element of backgroundImages) {
 		var backgroundImage = element.style.backgroundImage;
 		var match = backgroundImage && backgroundImage.match(/url\(["']?([^"')]+)["']?\)/);
-		if (match && match[1] && !images.includes(match[1]))
-			images.push(match[1]);
+		if (match && match[1])
+			addImage({
+				url: match[1],
+				name: '',
+				width: null,
+				height: null,
+				type: getImageTypeFromUrl(match[1])
+			});
 	}
 
 	return images;

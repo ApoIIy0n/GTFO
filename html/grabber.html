@@ -329,6 +329,14 @@
 			overflow-x: auto;
 		}
 
+		#gtfo-images-actions {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			margin-left: auto;
+			white-space: nowrap;
+		}
+
 		#gtfo-images-pages {
 			border-top: 1px solid #1a1a1a;
 			border-bottom: 0;
@@ -336,6 +344,7 @@
 
 		.gtfo-image-size-button,
 		.gtfo-image-mode-button,
+		.gtfo-image-download-button,
 		.gtfo-image-page-button {
 			cursor: pointer;
 			background: transparent;
@@ -348,6 +357,7 @@
 
 		.gtfo-image-size-button:hover,
 		.gtfo-image-mode-button:hover,
+		.gtfo-image-download-button:hover,
 		.gtfo-image-page-button:hover,
 		.gtfo-image-size-active,
 		.gtfo-image-mode-active,
@@ -413,18 +423,37 @@
 			border: 1px solid #555;
 			background: #262626;
 			padding: 8px;
+			display: grid;
+			grid-template-rows: minmax(0, 1fr) auto;
+			position: relative;
 		}
 
 		.gtfo-image-card img {
 			display: block;
 			max-width: 100%;
-			height: calc(100% - 34px);
-			max-height: calc(100% - 34px);
-			margin: 0 auto 8px;
+			max-height: 100%;
+			min-height: 0;
+			margin: 0 auto;
 			object-fit: contain;
 		}
 
-		.gtfo-image-card a {
+		.gtfo-image-select {
+			position: absolute;
+			top: 8px;
+			left: 8px;
+			width: 16px;
+			height: 16px;
+			accent-color: #1a1a1a;
+		}
+
+		.gtfo-image-meta {
+			margin-top: 6px;
+			min-width: 0;
+			line-height: 1.35;
+		}
+
+		.gtfo-image-meta a,
+		.gtfo-image-meta span {
 			display: block;
 			overflow: hidden;
 			text-overflow: ellipsis;
