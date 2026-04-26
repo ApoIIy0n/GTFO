@@ -630,14 +630,16 @@ function gtfo_GetImageList() {
 	for (let element of backgroundImages) {
 		var backgroundImage = element.style.backgroundImage;
 		var match = backgroundImage && backgroundImage.match(/url\(["']?([^"')]+)["']?\)/);
-		if (match && match[1])
+		if (match && match[1]) {
+			var backgroundUrl = new URL(match[1], document.baseURI).href;
 			addImage({
-				url: match[1],
+				url: backgroundUrl,
 				name: '',
 				width: null,
 				height: null,
-				type: getImageTypeFromUrl(match[1])
+				type: getImageTypeFromUrl(backgroundUrl)
 			});
+		}
 	}
 
 	return images;

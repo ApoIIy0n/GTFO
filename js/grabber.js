@@ -533,22 +533,26 @@ function gtfoCreateCommentLayout() {
 	var sourceTitleText = document.createElement('span');
 	sourceTitleText.id = 'gtfo-source-title-text';
 
-	var sourceActions = document.createElement('label');
+	var sourceActions = document.createElement('div');
 	sourceActions.id = 'gtfo-source-actions';
 
-	var prettifyInput = document.createElement('input');
-	prettifyInput.type = 'checkbox';
-	prettifyInput.id = 'gtfo-prettify-source';
-	sourceActions.appendChild(prettifyInput);
-	sourceActions.append(' Prettify');
+	var prettifyButton = document.createElement('button');
+	prettifyButton.type = 'button';
+	prettifyButton.id = 'gtfo-prettify-source';
+	prettifyButton.textContent = 'Prettify';
+	sourceActions.appendChild(prettifyButton);
 
 	var sourceCode = document.createElement('pre');
 	sourceCode.id = 'gtfo-source-code';
+
+	var sourceMarkers = document.createElement('div');
+	sourceMarkers.id = 'gtfo-source-markers';
 
 	sourceTitle.appendChild(sourceTitleText);
 	sourceTitle.appendChild(sourceActions);
 	sourcePanel.appendChild(sourceTitle);
 	sourcePanel.appendChild(sourceCode);
+	sourcePanel.appendChild(sourceMarkers);
 	layout.appendChild(nav);
 	layout.appendChild(sourcePanel);
 
@@ -631,6 +635,142 @@ function gtfoBuildImageDownloadName(host, imageInfo) {
 	return `${gtfoSanitizeFileName(host || 'website')}_${fileName}`;
 }
 
+function gtfoFormatBytes(bytes) {
+	if (!Number.isFinite(bytes))
+		return '';
+
+	var units = ['B', 'KB', 'MB', 'GB'];
+	var value = bytes;
+	var unitIndex = 0;
+
+	while (value >= 1024 && unitIndex < units.length - 1) {
+		value /= 1024;
+		unitIndex++;
+	}
+
+	return `${value.toFixed(unitIndex == 0 ? 0 : 2)} ${units[unitIndex]}`;
+}
+
+function gtfoBufferToHex(buffer) {
+	return Array.from(new Uint8Array(buffer))
+		.map((byte) => byte.toString(16).padStart(2, '0'))
+		.join('');
+}
+
+async function gtfoHashBlob(blob, algorithm) {
+	var buffer = await blob.arrayBuffer();
+	var digest = await crypto.subtle.digest(algorithm, buffer);
+	return gtfoBufferToHex(digest);
+}
+
+function gtfoMd5Add(x, y) {
+	return (((x & 0xffff) + (y & 0xffff)) + ((((x >>> 16) + (y >>> 16) + (((x & 0xffff) + (y & 0xffff)) >>> 16)) & 0xffff) << 16)) | 0;
+}
+
+function gtfoMd5RotateLeft(value, bits) {
+	return (value << bits) | (value >>> (32 - bits));
+}
+
+function gtfoMd5Step(fn, a, b, c, d, x, shift, constant) {
+	return gtfoMd5Add(gtfoMd5RotateLeft(gtfoMd5Add(gtfoMd5Add(a, fn(b, c, d)), gtfoMd5Add(x, constant)), shift), b);
+}
+
+async function gtfoMd5Blob(blob) {
+	var bytes = new Uint8Array(await blob.arrayBuffer());
+	var originalBitLength = bytes.length * 8;
+	var paddedLength = (((bytes.length + 8) >>> 6) + 1) << 6;
+	var padded = new Uint8Array(paddedLength);
+	padded.set(bytes);
+	padded[bytes.length] = 0x80;
+
+	for (let index = 0; index < 8; index++)
+		padded[paddedLength - 8 + index] = Math.floor(originalBitLength / Math.pow(2, 8 * index)) & 0xff;
+
+	var a = 0x67452301;
+	var b = 0xefcdab89;
+	var c = 0x98badcfe;
+	var d = 0x10325476;
+	var shifts = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21];
+	var constants = Array.from({ length: 64 }, (_, index) => Math.floor(Math.abs(Math.sin(index + 1)) * 0x100000000) | 0);
+
+	for (let offset = 0; offset < padded.length; offset += 64) {
+		var words = [];
+		for (let index = 0; index < 16; index++) {
+			var wordOffset = offset + index * 4;
+			words[index] = padded[wordOffset] | (padded[wordOffset + 1] << 8) | (padded[wordOffset + 2] << 16) | (padded[wordOffset + 3] << 24);
+		}
+
+		var aa = a;
+		var bb = b;
+		var cc = c;
+		var dd = d;
+
+		for (let index = 0; index < 64; index++) {
+			var fn;
+			var wordIndex;
+			var shift;
+
+			if (index < 16) {
+				fn = (x, y, z) => (x & y) | (~x & z);
+				wordIndex = index;
+				shift = shifts[index % 4];
+			}
+			else if (index < 32) {
+				fn = (x, y, z) => (x & z) | (y & ~z);
+				wordIndex = (5 * index + 1) % 16;
+				shift = shifts[4 + (index % 4)];
+			}
+			else if (index < 48) {
+				fn = (x, y, z) => x ^ y ^ z;
+				wordIndex = (3 * index + 5) % 16;
+				shift = shifts[8 + (index % 4)];
+			}
+			else {
+				fn = (x, y, z) => y ^ (x | ~z);
+				wordIndex = (7 * index) % 16;
+				shift = shifts[12 + (index % 4)];
+			}
+
+			var temp = dd;
+			dd = cc;
+			cc = bb;
+			bb = gtfoMd5Step(fn, aa, bb, cc, dd, words[wordIndex], shift, constants[index]);
+			aa = temp;
+		}
+
+		a = gtfoMd5Add(a, aa);
+		b = gtfoMd5Add(b, bb);
+		c = gtfoMd5Add(c, cc);
+		d = gtfoMd5Add(d, dd);
+	}
+
+	return [a, b, c, d].map((word) => {
+		var hex = '';
+		for (let index = 0; index < 4; index++)
+			hex += ((word >>> (index * 8)) & 0xff).toString(16).padStart(2, '0');
+		return hex;
+	}).join('');
+}
+
+async function gtfoGetImageBlob(imageInfo) {
+	if (imageInfo.blob)
+		return imageInfo.blob;
+
+	var response = await fetch(imageInfo.url);
+	if (!response.ok)
+		throw new Error(`HTTP ${response.status}`);
+
+	imageInfo.headers = {
+		contentType: response.headers.get('content-type') || '',
+		contentLength: response.headers.get('content-length') || '',
+		lastModified: response.headers.get('last-modified') || '',
+		cacheControl: response.headers.get('cache-control') || '',
+		etag: response.headers.get('etag') || ''
+	};
+	imageInfo.blob = await response.blob();
+	return imageInfo.blob;
+}
+
 function gtfoAppendImageCard(parent, imageInfo) {
 	var image = imageInfo.image;
 	var imageUrl = gtfoGetImageUrl(image);
@@ -707,12 +847,87 @@ function gtfoCreateImagesLayout() {
 	var pages = document.createElement('div');
 	pages.id = 'gtfo-images-pages';
 
+	var contextMenu = document.createElement('div');
+	contextMenu.id = 'gtfo-image-context-menu';
+
+	for (let action of [
+		{ id: 'view', text: 'View' },
+		{ id: 'save', text: 'Save' },
+		{ id: 'copy', text: 'Copy' },
+		{ id: 'inspect', text: 'Inspect' }
+	]) {
+		var item = document.createElement('button');
+		item.className = 'gtfo-image-context-item';
+		item.type = 'button';
+		item.dataset.action = action.id;
+		item.textContent = action.text;
+		contextMenu.appendChild(item);
+	}
+
+	var infoOverlay = document.createElement('div');
+	infoOverlay.id = 'gtfo-image-info-overlay';
+
+	var infoDialog = document.createElement('div');
+	infoDialog.id = 'gtfo-image-info-dialog';
+
+	var infoTitle = document.createElement('div');
+	infoTitle.id = 'gtfo-image-info-title';
+	var infoTitleText = document.createElement('span');
+	infoTitleText.id = 'gtfo-image-info-title-text';
+	var closeButton = document.createElement('button');
+	closeButton.className = 'gtfo-tool-button';
+	closeButton.id = 'gtfo-image-info-close';
+	closeButton.type = 'button';
+	closeButton.textContent = 'Close';
+	infoTitle.appendChild(infoTitleText);
+	infoTitle.appendChild(closeButton);
+
+	var infoText = document.createElement('textarea');
+	infoText.id = 'gtfo-image-info-text';
+	infoText.readOnly = true;
+
+	var infoActions = document.createElement('div');
+	infoActions.id = 'gtfo-image-info-actions';
+	var copyInfoButton = document.createElement('button');
+	copyInfoButton.className = 'gtfo-tool-button';
+	copyInfoButton.id = 'gtfo-image-info-copy';
+	copyInfoButton.type = 'button';
+	copyInfoButton.textContent = 'Copy info';
+	infoActions.appendChild(copyInfoButton);
+
+	infoDialog.appendChild(infoTitle);
+	infoDialog.appendChild(infoText);
+	infoDialog.appendChild(infoActions);
+	infoOverlay.appendChild(infoDialog);
+
+	var viewOverlay = document.createElement('div');
+	viewOverlay.id = 'gtfo-image-view-overlay';
+
+	var viewDialog = document.createElement('div');
+	viewDialog.id = 'gtfo-image-view-dialog';
+
+	var viewCloseButton = document.createElement('button');
+	viewCloseButton.id = 'gtfo-image-view-close';
+	viewCloseButton.type = 'button';
+	viewCloseButton.textContent = 'x';
+
+	var viewImage = document.createElement('img');
+	viewImage.id = 'gtfo-image-view-image';
+	viewImage.alt = '';
+
+	viewDialog.appendChild(viewCloseButton);
+	viewDialog.appendChild(viewImage);
+	viewOverlay.appendChild(viewDialog);
+
 	stage.appendChild(previousButton);
 	stage.appendChild(grid);
 	stage.appendChild(nextButton);
 	layout.appendChild(toolbar);
 	layout.appendChild(stage);
 	layout.appendChild(pages);
+	layout.appendChild(contextMenu);
+	layout.appendChild(infoOverlay);
+	layout.appendChild(viewOverlay);
 
 	return layout;
 }
@@ -753,16 +968,44 @@ function gtfoBuildComments(data) {
 	var activeGroup = null;
 	var prettifySource = false;
 	var foldedLinesBySource = new Map();
+	var selectedSourceLinesBySource = new Map();
+	var isSelectingSourceLines = false;
+	var toggledSourceLinesDuringDrag = new Set();
+	var updateActiveSourceMarkers = null;
+	var sourceMarkerResizeFrame = null;
+	var sourceResizeObserver = null;
 
 	gtfoClearElement(comments);
 	comments.appendChild(gtfoCreateCommentLayout());
 
 	var nav = document.getElementById('gtfo-comments-nav');
-	document.getElementById('gtfo-prettify-source').addEventListener('change', (event) => {
-		prettifySource = event.target.checked;
+	document.getElementById('gtfo-prettify-source').addEventListener('click', (event) => {
+		prettifySource = !prettifySource;
+		event.target.classList.toggle('gtfo-prettify-active', prettifySource);
 		if (activeGroup)
 			renderSource(activeGroup, gtfoGetSelectedCommentsForGroup(activeGroup), true);
 	});
+	document.addEventListener('mouseup', () => {
+		isSelectingSourceLines = false;
+		toggledSourceLinesDuringDrag.clear();
+	});
+
+	function scheduleSourceMarkerUpdate() {
+		if (!updateActiveSourceMarkers || sourceMarkerResizeFrame)
+			return;
+
+		sourceMarkerResizeFrame = requestAnimationFrame(() => {
+			sourceMarkerResizeFrame = null;
+			if (updateActiveSourceMarkers)
+				updateActiveSourceMarkers();
+		});
+	}
+
+	window.addEventListener('resize', scheduleSourceMarkerUpdate);
+	if (typeof ResizeObserver == 'function') {
+		sourceResizeObserver = new ResizeObserver(scheduleSourceMarkerUpdate);
+		sourceResizeObserver.observe(document.getElementById('gtfo-source-panel'));
+	}
 
 	function gtfoGetSelectedCommentsForGroup(group) {
 		return Array.from(document.querySelectorAll('.gtfo-comment-active'))
@@ -778,10 +1021,15 @@ function gtfoBuildComments(data) {
 		return `${group.title}::${prettifySource ? 'pretty' : 'raw'}`;
 	}
 
+	function gtfoGetSourceStateKey(group) {
+		return gtfoGetFoldStateKey(group);
+	}
+
 	function renderSource(group, selectedComments, keepScroll, scrollComment) {
 		var sourceTitle = document.getElementById('gtfo-source-title-text');
 		var sourceCode = document.getElementById('gtfo-source-code');
 		var sourcePanel = document.getElementById('gtfo-source-panel');
+		var sourceMarkers = document.getElementById('gtfo-source-markers');
 		var sourceType = gtfoGetSourceType(group);
 		var rawSource = group.source || 'Source was not available for this subject.';
 		var source = prettifySource ? gtfoFormatSource(rawSource, sourceType) : rawSource;
@@ -791,7 +1039,9 @@ function gtfoBuildComments(data) {
 		var scrollRange = gtfoFindCommentRange(lines, scrollComment, sourceType);
 		var foldRanges = gtfoBuildFoldRanges(lines, sourceType);
 		var foldStateKey = gtfoGetFoldStateKey(group);
+		var sourceStateKey = gtfoGetSourceStateKey(group);
 		var foldedLines = foldedLinesBySource.get(foldStateKey) || new Set();
+		var selectedSourceLines = selectedSourceLinesBySource.get(sourceStateKey) || new Set();
 		var lineNumberWidth = String(lines.length).length;
 		var previousScrollTop = sourcePanel.scrollTop;
 		var previousScrollLeft = sourcePanel.scrollLeft;
@@ -805,6 +1055,68 @@ function gtfoBuildComments(data) {
 
 		sourceTitle.textContent = group.title;
 		gtfoClearElement(sourceCode);
+		gtfoClearElement(sourceMarkers);
+
+		function updateSourceMarkers() {
+			gtfoClearElement(sourceMarkers);
+			var panelRect = sourcePanel.getBoundingClientRect();
+			var scrollbarWidth = sourcePanel.offsetWidth - sourcePanel.clientWidth;
+			var hasVerticalScrollbar = sourcePanel.scrollHeight > sourcePanel.clientHeight;
+			var markerWidth = scrollbarWidth;
+			var scrollbarButtonSize = scrollbarWidth;
+			var markerTop = panelRect.top + scrollbarButtonSize;
+			var markerHeight = sourcePanel.clientHeight - (scrollbarButtonSize * 2);
+			var markerLeft = panelRect.right - scrollbarWidth;
+
+			sourceMarkers.style.display = hasVerticalScrollbar && markerWidth > 0 && markerHeight > 0 ? 'block' : 'none';
+			sourceMarkers.style.left = `${markerLeft}px`;
+			sourceMarkers.style.top = `${markerTop}px`;
+			sourceMarkers.style.height = `${markerHeight}px`;
+			sourceMarkers.style.width = `${markerWidth}px`;
+
+			function appendMarker(lineIndex, className) {
+				if (lines.length <= 1)
+					return;
+
+				var marker = document.createElement('div');
+				marker.className = className;
+				var markerTop = Math.max(0, Math.min(markerHeight - 3, (lineIndex / (lines.length - 1)) * markerHeight));
+				marker.style.top = `${markerTop}px`;
+				sourceMarkers.appendChild(marker);
+			}
+
+			for (let lineIndex of selectedLineIndexes)
+				appendMarker(lineIndex, 'gtfo-source-marker');
+
+			for (let lineIndex of selectedSourceLines)
+				appendMarker(lineIndex, 'gtfo-source-marker gtfo-source-marker-line');
+		}
+		updateActiveSourceMarkers = updateSourceMarkers;
+
+		function applySourceLineSelectionClasses() {
+			selectedSourceLinesBySource.set(sourceStateKey, selectedSourceLines);
+
+			sourceCode.querySelectorAll('.gtfo-source-line').forEach((row) => {
+				row.classList.toggle('gtfo-source-line-selected', selectedSourceLines.has(Number(row.dataset.lineIndex)));
+			});
+			updateSourceMarkers();
+		}
+
+		function setSourceLineSelection(lineIndex, additive) {
+			if (additive) {
+				if (selectedSourceLines.has(lineIndex))
+					selectedSourceLines.delete(lineIndex);
+				else
+					selectedSourceLines.add(lineIndex);
+			}
+			else if (selectedSourceLines.has(lineIndex))
+				selectedSourceLines.clear();
+			else {
+				selectedSourceLines.clear();
+				selectedSourceLines.add(lineIndex);
+			}
+			applySourceLineSelectionClasses();
+		}
 
 		function applyFoldVisibility() {
 			var rows = sourceCode.querySelectorAll('.gtfo-source-line');
@@ -822,6 +1134,7 @@ function gtfoBuildComments(data) {
 
 				row.classList.toggle('gtfo-source-hidden', hidden);
 				row.classList.toggle('gtfo-source-folded', foldedLines.has(lineIndex));
+				row.classList.toggle('gtfo-source-line-selected', selectedSourceLines.has(lineIndex));
 
 				var toggle = row.querySelector('.gtfo-fold-toggle');
 				if (toggle)
@@ -837,6 +1150,24 @@ function gtfoBuildComments(data) {
 			lineElement.dataset.lineIndex = String(index);
 			if (scrollMatch)
 				lineElement.classList.add('gtfo-source-scroll-target');
+			if (selectedSourceLines.has(index))
+				lineElement.classList.add('gtfo-source-line-selected');
+
+			lineElement.addEventListener('mousedown', (event) => {
+				if (event.button != 0)
+					return;
+
+				isSelectingSourceLines = true;
+				toggledSourceLinesDuringDrag = new Set([index]);
+				setSourceLineSelection(index, event.altKey || event.getModifierState('Alt'));
+				event.preventDefault();
+			});
+			lineElement.addEventListener('mouseenter', (event) => {
+				if (isSelectingSourceLines && event.buttons == 1 && (event.altKey || event.getModifierState('Alt')) && !toggledSourceLinesDuringDrag.has(index)) {
+					toggledSourceLinesDuringDrag.add(index);
+					setSourceLineSelection(index, true);
+				}
+			});
 
 			var lineNumber = document.createElement('span');
 			lineNumber.className = 'gtfo-line-number';
@@ -882,6 +1213,8 @@ function gtfoBuildComments(data) {
 
 		applyFoldVisibility();
 		foldedLinesBySource.set(foldStateKey, foldedLines);
+		selectedSourceLinesBySource.set(sourceStateKey, selectedSourceLines);
+		updateSourceMarkers();
 
 		if (scrollRange) {
 			var firstHighlight = sourceCode.querySelector('.gtfo-source-scroll-target') || sourceCode.querySelector('.gtfo-source-highlight');
@@ -896,6 +1229,8 @@ function gtfoBuildComments(data) {
 			sourcePanel.scrollTop = 0;
 			sourcePanel.scrollLeft = 0;
 		}
+
+		updateSourceMarkers();
 	}
 
 	function setActiveGroup(section, group) {
@@ -1036,6 +1371,13 @@ function gtfoBuildImages(data) {
 	var pages = document.getElementById('gtfo-images-pages');
 	var previousButton = document.getElementById('gtfo-images-prev');
 	var nextButton = document.getElementById('gtfo-images-next');
+	var contextMenu = document.getElementById('gtfo-image-context-menu');
+	var infoOverlay = document.getElementById('gtfo-image-info-overlay');
+	var infoText = document.getElementById('gtfo-image-info-text');
+	var infoTitleText = document.getElementById('gtfo-image-info-title-text');
+	var viewOverlay = document.getElementById('gtfo-image-view-overlay');
+	var viewImage = document.getElementById('gtfo-image-view-image');
+	var contextImageInfo = null;
 
 	function getImagesPerPage() {
 		return activeGridSize.columns * activeGridSize.rows;
@@ -1071,17 +1413,17 @@ function gtfoBuildImages(data) {
 		var actions = document.createElement('div');
 		actions.id = 'gtfo-images-actions';
 
-		var selectAllLabel = document.createElement('label');
-		var selectAll = document.createElement('input');
-		selectAll.type = 'checkbox';
-		selectAll.id = 'gtfo-select-all-images';
-		selectAll.checked = imageList.every((imageInfo) => imageInfo.selected);
-		selectAll.addEventListener('change', (event) => {
-			imageList.forEach((imageInfo) => imageInfo.selected = event.target.checked);
+		var selectAllButton = document.createElement('button');
+		var allSelected = imageList.every((imageInfo) => imageInfo.selected);
+		selectAllButton.className = allSelected ? 'gtfo-image-select-all-button gtfo-image-select-all-active' : 'gtfo-image-select-all-button';
+		selectAllButton.id = 'gtfo-select-all-images';
+		selectAllButton.type = 'button';
+		selectAllButton.textContent = 'Select all';
+		selectAllButton.addEventListener('click', () => {
+			var selectEverything = !imageList.every((imageInfo) => imageInfo.selected);
+			imageList.forEach((imageInfo) => imageInfo.selected = selectEverything);
 			renderImages();
 		});
-		selectAllLabel.appendChild(selectAll);
-		selectAllLabel.append(' Select all');
 
 		var downloadButton = document.createElement('button');
 		downloadButton.className = 'gtfo-image-download-button';
@@ -1089,7 +1431,7 @@ function gtfoBuildImages(data) {
 		downloadButton.textContent = 'Download selected';
 		downloadButton.addEventListener('click', () => gtfoDownloadSelectedImages());
 
-		actions.appendChild(selectAllLabel);
+		actions.appendChild(selectAllButton);
 		actions.appendChild(downloadButton);
 		toolbar.appendChild(actions);
 	}
@@ -1111,6 +1453,19 @@ function gtfoBuildImages(data) {
 			});
 			pages.appendChild(button);
 		}
+	}
+
+	function closeImageContextMenu() {
+		contextMenu.classList.remove('gtfo-context-menu-open');
+		contextImageInfo = null;
+	}
+
+	function openImageContextMenu(event, imageInfo) {
+		event.preventDefault();
+		contextImageInfo = imageInfo;
+		contextMenu.style.left = `${Math.min(event.clientX, window.innerWidth - 170)}px`;
+		contextMenu.style.top = `${Math.min(event.clientY, window.innerHeight - 120)}px`;
+		contextMenu.classList.add('gtfo-context-menu-open');
 	}
 
 	function goToImagePage(pageIndex) {
@@ -1135,11 +1490,14 @@ function gtfoBuildImages(data) {
 
 		for (let imageInfo of shownImages) {
 			var card = gtfoAppendImageCard(grid, imageInfo);
+			card.addEventListener('contextmenu', (event) => openImageContextMenu(event, imageInfo));
 			card.querySelector('.gtfo-image-select').addEventListener('change', (event) => {
 				imageInfo.selected = event.target.checked;
 				var selectAll = document.getElementById('gtfo-select-all-images');
-				if (selectAll)
-					selectAll.checked = imageList.every((item) => item.selected);
+				if (selectAll) {
+					var allSelected = imageList.every((item) => item.selected);
+					selectAll.classList.toggle('gtfo-image-select-all-active', allSelected);
+				}
 			});
 		}
 
@@ -1182,6 +1540,135 @@ function gtfoBuildImages(data) {
 		for (let imageInfo of selectedImages)
 			await gtfoDownloadImage(imageInfo);
 	}
+
+	function gtfoViewImage(imageInfo) {
+		viewImage.src = imageInfo.url;
+		viewImage.alt = imageInfo.name;
+		viewOverlay.classList.add('gtfo-image-view-open');
+	}
+
+	async function gtfoCopyImage(imageInfo) {
+		var blob = await gtfoGetImageBlob(imageInfo);
+		var mimeType = blob.type || `image/${gtfoGetImageType(imageInfo.image)}`;
+
+		if (typeof ClipboardItem == 'function' && navigator.clipboard && navigator.clipboard.write) {
+			try {
+				await navigator.clipboard.write([
+					new ClipboardItem({ [mimeType]: blob })
+				]);
+				return;
+			}
+			catch (error) {
+				if (mimeType == 'image/png')
+					throw error;
+			}
+
+			var bitmap = await createImageBitmap(blob);
+			var canvas = document.createElement('canvas');
+			canvas.width = bitmap.width;
+			canvas.height = bitmap.height;
+			canvas.getContext('2d').drawImage(bitmap, 0, 0);
+			var pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+			await navigator.clipboard.write([
+				new ClipboardItem({ 'image/png': pngBlob })
+			]);
+			return;
+		}
+
+		throw new Error('Image clipboard API is not available.');
+	}
+
+	async function gtfoBuildImageInfo(imageInfo) {
+		var blob = await gtfoGetImageBlob(imageInfo);
+		if (!imageInfo.dimensions && typeof createImageBitmap == 'function') {
+			try {
+				var bitmap = await createImageBitmap(blob);
+				imageInfo.dimensions = `${bitmap.width} x ${bitmap.height}`;
+			}
+			catch (error) {
+				console.warn('GTFO could not read image dimensions from blob.', error);
+			}
+		}
+		var hashes = await Promise.all([
+			gtfoMd5Blob(blob),
+			gtfoHashBlob(blob, 'SHA-1'),
+			gtfoHashBlob(blob, 'SHA-256')
+		]);
+		var downloadName = gtfoBuildImageDownloadName(host, imageInfo);
+		var type = blob.type || `image/${gtfoGetImageType(imageInfo.image)}`;
+		var headers = imageInfo.headers || {};
+
+		return [
+			`Name: ${imageInfo.name}`,
+			`Download name: ${downloadName}`,
+			`URL: ${imageInfo.url}`,
+			`Dimensions: ${imageInfo.dimensions || 'unknown'}`,
+			`Type: ${type}`,
+			`Size: ${gtfoFormatBytes(blob.size)}`,
+			`Bytes: ${blob.size}`,
+			`Content-Type: ${headers.contentType || 'unknown'}`,
+			`Content-Length: ${headers.contentLength || 'unknown'}`,
+			`Last-Modified: ${headers.lastModified || 'unknown'}`,
+			`Cache-Control: ${headers.cacheControl || 'unknown'}`,
+			`ETag: ${headers.etag || 'unknown'}`,
+			`MD5: ${hashes[0]}`,
+			`SHA-1: ${hashes[1]}`,
+			`SHA-256: ${hashes[2]}`
+		].join('\n');
+	}
+
+	async function gtfoInspectImage(imageInfo) {
+		infoTitleText.textContent = imageInfo.name;
+		infoText.value = 'Loading image info and hashes...';
+		infoOverlay.classList.add('gtfo-image-info-open');
+
+		try {
+			infoText.value = await gtfoBuildImageInfo(imageInfo);
+		}
+		catch (error) {
+			infoText.value = `Could not load image info.\n\n${error.message || error}\n\nURL: ${imageInfo.url}`;
+		}
+	}
+
+	contextMenu.addEventListener('click', async (event) => {
+		var item = event.target.closest('.gtfo-image-context-item');
+		if (!item || !contextImageInfo)
+			return;
+
+		var imageInfo = contextImageInfo;
+		closeImageContextMenu();
+
+		try {
+			if (item.dataset.action == 'view')
+				gtfoViewImage(imageInfo);
+			else if (item.dataset.action == 'save')
+				await gtfoDownloadImage(imageInfo);
+			else if (item.dataset.action == 'copy')
+				await gtfoCopyImage(imageInfo);
+			else if (item.dataset.action == 'inspect')
+				await gtfoInspectImage(imageInfo);
+		}
+		catch (error) {
+			console.warn('GTFO image context action failed.', error);
+			alert(error.message || error);
+		}
+	});
+
+	document.addEventListener('click', closeImageContextMenu);
+	document.addEventListener('keydown', (event) => {
+		if (event.key == 'Escape') {
+			closeImageContextMenu();
+			infoOverlay.classList.remove('gtfo-image-info-open');
+			viewOverlay.classList.remove('gtfo-image-view-open');
+		}
+	});
+	document.getElementById('gtfo-image-info-close').addEventListener('click', () => infoOverlay.classList.remove('gtfo-image-info-open'));
+	document.getElementById('gtfo-image-info-copy').addEventListener('click', () => navigator.clipboard.writeText(infoText.value));
+	document.getElementById('gtfo-image-view-close').addEventListener('click', () => viewOverlay.classList.remove('gtfo-image-view-open'));
+	viewOverlay.addEventListener('click', (event) => {
+		if (event.target == viewOverlay)
+			viewOverlay.classList.remove('gtfo-image-view-open');
+	});
 
 	renderImages();
 }
