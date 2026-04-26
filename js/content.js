@@ -656,6 +656,20 @@ async function gtfo_GetTextFromUrl(url) {
 			console.log(`Can't load source: ${url}`);
 	}
 
+	try {
+		var backgroundResponse = await browser.runtime.sendMessage({
+			type: 'gtfo_fetch_text',
+			url: url
+		});
+
+		if (backgroundResponse && backgroundResponse.ok)
+			return backgroundResponse.text;
+	}
+	catch (error) {
+		if (debugging)
+			console.log(`Can't load source through background: ${url}`);
+	}
+
 	return null;
 }
 

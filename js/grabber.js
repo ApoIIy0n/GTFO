@@ -41,56 +41,114 @@ function gtfoGetUrls(data) {
 	return urls;
 }
 
+function gtfoGetAssetOrigin(url, pageUrl) {
+	try {
+		return new URL(url, pageUrl).origin;
+	}
+	catch (error) {
+		return '';
+	}
+}
+
+function gtfoGetAssetPath(url, pageUrl) {
+	if (!url)
+		return 'Inline';
+
+	try {
+		var assetUrl = new URL(url, pageUrl);
+		var pageOrigin = gtfoGetAssetOrigin(pageUrl, pageUrl);
+		return assetUrl.origin == pageOrigin ? `${assetUrl.pathname}${assetUrl.search || ''}` : assetUrl.href;
+	}
+	catch (error) {
+		return url;
+	}
+}
+
+function gtfoGetAssetScope(url, pageUrl) {
+	if (!url)
+		return 'inline';
+
+	return gtfoGetAssetOrigin(url, pageUrl) == gtfoGetAssetOrigin(pageUrl, pageUrl) ? 'same-origin' : 'third-party';
+}
+
 function gtfoGetCommentGroups(data) {
 	var groups = [];
+	var pageUrl = gtfoGetPageUrl(data);
 
 	if (data.html)
 		groups.push({
 			title: `HTML: ${data.html.name || 'Page'}`,
 			source: data.html.source || data.pageHtml || '',
-			comments: data.html.comments || []
+			comments: data.html.comments || [],
+			sourceType: 'html',
+			sourceScope: 'page',
+			displayName: data.html.name || 'Page'
 		});
 	else if (data.comments)
 		groups.push({
 			title: 'HTML',
 			source: data.pageHtml || '',
-			comments: data.comments.html || []
+			comments: data.comments.html || [],
+			sourceType: 'html',
+			sourceScope: 'page',
+			displayName: 'Page'
 		});
 
 	if (Array.isArray(data.js)) {
-		for (let script of data.js)
+		for (let script of data.js) {
+			let scope = gtfoGetAssetScope(script.url, pageUrl);
 			groups.push({
 				title: `JavaScript: ${script.url || 'Page'}`,
 				source: script.source || '',
-				comments: script.comments || []
+				comments: script.comments || [],
+				sourceType: 'javascript',
+				sourceScope: scope,
+				displayName: scope == 'inline' ? 'Inline Script' : gtfoGetAssetPath(script.url, pageUrl),
+				url: script.url || ''
 			});
+		}
 	}
 	else if (data.comments) {
 		groups.push({
 			title: 'JavaScript',
 			source: '',
-			comments: data.comments.javascript || []
+			comments: data.comments.javascript || [],
+			sourceType: 'javascript',
+			sourceScope: 'inline',
+			displayName: 'Inline Script'
 		});
 	}
 
 	if (Array.isArray(data.css)) {
-		for (let stylesheet of data.css)
+		for (let stylesheet of data.css) {
+			let scope = gtfoGetAssetScope(stylesheet.url, pageUrl);
 			groups.push({
 				title: `CSS: ${stylesheet.url || 'Stylesheet'}`,
 				source: stylesheet.source || '',
-				comments: stylesheet.comments || []
+				comments: stylesheet.comments || [],
+				sourceType: 'css',
+				sourceScope: scope == 'inline' ? 'same-origin' : scope,
+				displayName: gtfoGetAssetPath(stylesheet.url, pageUrl),
+				url: stylesheet.url || ''
 			});
+		}
 	}
 
 	return groups;
 }
 
 function gtfoGetSourceType(group) {
+	if (group.sourceType)
+		return group.sourceType;
 	if (group.title.startsWith('HTML:'))
 		return 'html';
 	if (group.title.startsWith('CSS:'))
 		return 'css';
 	return 'javascript';
+}
+
+function gtfoPlural(value, singular, plural) {
+	return `${value} ${value == 1 ? singular : plural}`;
 }
 
 function gtfoHighlightSyntax(line, sourceType) {
@@ -1005,7 +1063,7 @@ function gtfoBuildUrls(data) {
 }
 
 function gtfoBuildComments(data) {
-	var comments = document.getElementById('Comments');
+	var comments = document.getElementById('Sources');
 	var groups = gtfoGetCommentGroups(data);
 	var activeGroup = null;
 	var prettifySource = false;
@@ -1030,6 +1088,10 @@ function gtfoBuildComments(data) {
 	document.addEventListener('mouseup', () => {
 		isSelectingSourceLines = false;
 		toggledSourceLinesDuringDrag.clear();
+	});
+	document.addEventListener('selectionchange', () => {
+		if (updateActiveSourceMarkers)
+			updateActiveSourceMarkers();
 	});
 
 	function scheduleSourceMarkerUpdate() {
@@ -1062,6 +1124,25 @@ function gtfoBuildComments(data) {
 		}
 
 		return '';
+	}
+
+	function gtfoGetCyanSelectionLineIndexes() {
+		var sourceCode = document.getElementById('gtfo-source-code');
+		var selection = window.getSelection();
+		var lineIndexes = new Set();
+		if (!sourceCode || !selection || selection.rangeCount == 0 || selection.isCollapsed)
+			return lineIndexes;
+
+		sourceCode.querySelectorAll('.gtfo-source-line').forEach((row) => {
+			for (let index = 0; index < selection.rangeCount; index++) {
+				if (selection.getRangeAt(index).intersectsNode(row)) {
+					lineIndexes.add(Number(row.dataset.lineIndex));
+					break;
+				}
+			}
+		});
+
+		return lineIndexes;
 	}
 
 	function gtfoNormalizeSelectionText(value) {
@@ -1242,6 +1323,9 @@ function gtfoBuildComments(data) {
 
 			for (let lineIndex of selectedSourceLines)
 				appendMarker(lineIndex, 'gtfo-source-marker gtfo-source-marker-line');
+
+			for (let lineIndex of gtfoGetCyanSelectionLineIndexes())
+				appendMarker(lineIndex, 'gtfo-source-marker gtfo-source-marker-cyan');
 		}
 		updateActiveSourceMarkers = updateSourceMarkers;
 
@@ -1388,14 +1472,14 @@ function gtfoBuildComments(data) {
 		updateSourceMarkers();
 	}
 
-	function setActiveGroup(section, group) {
-		document.querySelectorAll('.gtfo-comment-group').forEach((item) => item.classList.remove('gtfo-comment-group-active'));
-		section.classList.add('gtfo-comment-group-active');
+	function setActiveGroup(node, group) {
+		document.querySelectorAll('.gtfo-tree-node-active').forEach((item) => item.classList.remove('gtfo-tree-node-active'));
+		node.classList.add('gtfo-tree-node-active');
 		activeGroup = group;
 		renderSource(group, gtfoGetSelectedCommentsForGroup(group));
 	}
 
-	function setActiveComment(event, item, section, group, comment) {
+	function setActiveComment(event, item, sourceNode, group, comment) {
 		var multiSelect = item.dataset.gtfoMultiSelect == 'true' || event.altKey || event.getModifierState('Alt');
 		item.dataset.gtfoMultiSelect = 'false';
 
@@ -1404,9 +1488,9 @@ function gtfoBuildComments(data) {
 			event.stopPropagation();
 		}
 
-		document.querySelectorAll('.gtfo-comment-group').forEach((item) => item.classList.remove('gtfo-comment-group-active'));
+		document.querySelectorAll('.gtfo-tree-node-active').forEach((item) => item.classList.remove('gtfo-tree-node-active'));
 
-		section.classList.add('gtfo-comment-group-active');
+		sourceNode.classList.add('gtfo-tree-node-active');
 		activeGroup = group;
 
 		var wasActive = item.classList.contains('gtfo-comment-active');
@@ -1429,52 +1513,141 @@ function gtfoBuildComments(data) {
 			renderSource(group, gtfoGetSelectedCommentsForGroup(group), false, comment);
 	}
 
-	for (let group of groups) {
-		let section = document.createElement('section');
-		section.className = 'gtfo-comment-group';
-		let heading = document.createElement('h2');
-		heading.textContent = group.title;
-		heading.addEventListener('click', () => setActiveGroup(section, group));
-		section.appendChild(heading);
-
-		let list = document.createElement('ul');
-		list.className = 'gtfo-comment-list';
-		if (group.comments.length == 0) {
-			let empty = document.createElement('li');
-			empty.className = 'gtfo-comment-empty';
-			empty.textContent = 'No comments found';
-			list.appendChild(empty);
-		}
-		else {
-			for (let comment of group.comments) {
-				let item = document.createElement('li');
-				item.textContent = comment;
-				item.gtfoGroup = group;
-				item.gtfoComment = comment;
-				item.addEventListener('pointerdown', (event) => {
-					var isMultiSelect = event.altKey || event.getModifierState('Alt');
-					item.dataset.gtfoMultiSelect = isMultiSelect ? 'true' : 'false';
-					if (isMultiSelect)
-						event.preventDefault();
-				});
-				item.addEventListener('mousedown', (event) => {
-					var isMultiSelect = event.altKey || event.getModifierState('Alt');
-					item.dataset.gtfoMultiSelect = isMultiSelect ? 'true' : item.dataset.gtfoMultiSelect;
-					if (isMultiSelect)
-						event.preventDefault();
-				});
-				item.addEventListener('click', (event) => setActiveComment(event, item, section, group, comment));
-				list.appendChild(item);
-			}
-		}
-
-		section.appendChild(list);
-		nav.appendChild(section);
+	function countGroupComments(groupList) {
+		return groupList.reduce((total, group) => total + group.comments.length, 0);
 	}
 
+	function createTreeNode(label, options) {
+		options = options || {};
+		var node = document.createElement('li');
+		node.className = 'gtfo-source-tree-node';
+		var button = document.createElement('button');
+		button.type = 'button';
+		button.className = 'gtfo-tree-label';
+		button.textContent = label;
+		node.appendChild(button);
+
+		if (options.children) {
+			button.classList.add('gtfo-tree-toggle');
+			node.appendChild(options.children);
+			button.addEventListener('click', () => node.classList.toggle('gtfo-tree-collapsed'));
+		}
+		else if (options.onClick) {
+			button.addEventListener('click', options.onClick);
+		}
+
+		return node;
+	}
+
+	function createCommentNode(comment, sourceNode, group) {
+		var item = document.createElement('li');
+		item.textContent = comment;
+		item.gtfoGroup = group;
+		item.gtfoComment = comment;
+		item.addEventListener('pointerdown', (event) => {
+			var isMultiSelect = event.altKey || event.getModifierState('Alt');
+			item.dataset.gtfoMultiSelect = isMultiSelect ? 'true' : 'false';
+			if (isMultiSelect)
+				event.preventDefault();
+		});
+		item.addEventListener('mousedown', (event) => {
+			var isMultiSelect = event.altKey || event.getModifierState('Alt');
+			item.dataset.gtfoMultiSelect = isMultiSelect ? 'true' : item.dataset.gtfoMultiSelect;
+			if (isMultiSelect)
+				event.preventDefault();
+		});
+		item.addEventListener('click', (event) => setActiveComment(event, item, sourceNode, group, comment));
+		return item;
+	}
+
+	function createSourceNode(group, label) {
+		var commentList = document.createElement('ul');
+		commentList.className = 'gtfo-comment-list';
+		var sourceNode = createTreeNode(label, {
+			children: commentList
+		});
+		sourceNode.classList.add('gtfo-source-file-node');
+		sourceNode.gtfoGroup = group;
+		sourceNode.querySelector(':scope > .gtfo-tree-label').addEventListener('click', (event) => {
+			if (event.target == sourceNode.querySelector(':scope > .gtfo-tree-label'))
+				setActiveGroup(sourceNode, group);
+		});
+
+		if (group.comments.length == 0) {
+			var empty = document.createElement('li');
+			empty.className = 'gtfo-comment-empty';
+			empty.textContent = 'No comments found';
+			commentList.appendChild(empty);
+		}
+		else {
+			for (let comment of group.comments)
+				commentList.appendChild(createCommentNode(comment, sourceNode, group));
+		}
+
+		return sourceNode;
+	}
+
+	function appendSourceCategory(parentList, label, groupList, singular, plural) {
+		if (groupList.length == 0)
+			return;
+
+		singular = singular || 'source';
+		plural = plural || 'sources';
+		var categoryList = document.createElement('ul');
+		for (let [index, group] of groupList.entries()) {
+			var name = group.displayName || group.title;
+			if (group.sourceScope == 'inline' && groupList.length > 1)
+				name = `${name} ${index + 1}`;
+			categoryList.appendChild(createSourceNode(group, `${name} [${gtfoPlural(group.comments.length, 'comment', 'comments')}]`));
+		}
+
+		parentList.appendChild(createTreeNode(`${label} [${gtfoPlural(groupList.length, singular, plural)}, ${gtfoPlural(countGroupComments(groupList), 'comment', 'comments')}]`, {
+			children: categoryList
+		}));
+	}
+
+	function appendLanguageRoot(root, label, groupList, builder, singular, plural) {
+		if (groupList.length == 0)
+			return;
+
+		singular = singular || 'source';
+		plural = plural || 'sources';
+		var languageList = document.createElement('ul');
+		builder(languageList, groupList);
+		root.appendChild(createTreeNode(`${label} [${gtfoPlural(groupList.length, singular, plural)}, ${gtfoPlural(countGroupComments(groupList), 'comment', 'comments')}]`, {
+			children: languageList
+		}));
+	}
+
+	var tree = document.createElement('ul');
+	tree.className = 'gtfo-source-tree';
+	var htmlGroups = groups.filter((group) => group.sourceType == 'html');
+	var jsGroups = groups.filter((group) => group.sourceType == 'javascript');
+	var cssGroups = groups.filter((group) => group.sourceType == 'css');
+
+	appendLanguageRoot(tree, 'HTML', htmlGroups, (languageList, groupList) => {
+		for (let group of groupList) {
+			var commentFolder = document.createElement('ul');
+			commentFolder.appendChild(createSourceNode(group, `${group.displayName || 'Page'} [${gtfoPlural(group.comments.length, 'comment', 'comments')}]`));
+			languageList.appendChild(createTreeNode(`Comments [${gtfoPlural(group.comments.length, 'comment', 'comments')}]`, { children: commentFolder }));
+		}
+	});
+	appendLanguageRoot(tree, 'JavaScript', jsGroups, (languageList, groupList) => {
+		appendSourceCategory(languageList, 'Inline Scripts', groupList.filter((group) => group.sourceScope == 'inline'), 'script', 'scripts');
+		appendSourceCategory(languageList, 'Same-Origin Scripts', groupList.filter((group) => group.sourceScope == 'same-origin'), 'script', 'scripts');
+		appendSourceCategory(languageList, 'Third-Party Scripts', groupList.filter((group) => group.sourceScope == 'third-party'), 'script', 'scripts');
+	}, 'script', 'scripts');
+	appendLanguageRoot(tree, 'CSS', cssGroups, (languageList, groupList) => {
+		appendSourceCategory(languageList, 'Same-Origin Stylesheets', groupList.filter((group) => group.sourceScope != 'third-party'), 'stylesheet', 'stylesheets');
+		appendSourceCategory(languageList, 'Third-Party Stylesheets', groupList.filter((group) => group.sourceScope == 'third-party'), 'stylesheet', 'stylesheets');
+	}, 'stylesheet', 'stylesheets');
+
+	nav.appendChild(tree);
+
 	if (groups.length > 0) {
-		var firstSection = nav.querySelector('.gtfo-comment-group');
-		setActiveGroup(firstSection, groups[0]);
+		var firstSource = nav.querySelector('.gtfo-source-file-node');
+		if (firstSource)
+			setActiveGroup(firstSource, firstSource.gtfoGroup);
 	}
 }
 

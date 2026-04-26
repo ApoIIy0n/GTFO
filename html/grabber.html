@@ -115,7 +115,7 @@
 			overflow: hidden;
 		}
 
-		#Comments {
+		#Sources {
 			height: calc(100vh - 68px);
 			overflow: hidden;
 		}
@@ -131,6 +131,53 @@
 			border-right: 1px solid #1a1a1a;
 			background: #313131;
 			padding: 10px;
+		}
+
+		.gtfo-source-tree {
+			margin: 0;
+			padding: 0;
+			list-style: none;
+		}
+
+		.gtfo-source-tree ul {
+			margin: 2px 0 6px 16px;
+			padding: 0;
+			list-style: none;
+		}
+
+		.gtfo-source-tree-node {
+			margin: 2px 0;
+		}
+
+		.gtfo-tree-label {
+			display: block;
+			width: 100%;
+			border: 0;
+			background: transparent;
+			color: white;
+			font: 12px Consolas, monospace;
+			padding: 2px 4px;
+			text-align: left;
+			white-space: nowrap;
+			cursor: pointer;
+		}
+
+		.gtfo-tree-label:hover,
+		.gtfo-tree-node-active > .gtfo-tree-label {
+			color: red;
+		}
+
+		.gtfo-tree-toggle::before {
+			content: "v ";
+			color: #aaa;
+		}
+
+		.gtfo-tree-collapsed > .gtfo-tree-toggle::before {
+			content: "> ";
+		}
+
+		.gtfo-tree-collapsed > ul {
+			display: none;
 		}
 
 		#gtfo-source-panel {
@@ -157,6 +204,10 @@
 
 		.gtfo-source-marker-line {
 			background: #1f6b3a;
+		}
+
+		.gtfo-source-marker-cyan {
+			background: #00c8ff;
 		}
 
 		#gtfo-source-title {
@@ -241,20 +292,6 @@
 
 		.gtfo-selection-menu button:hover,
 		.gtfo-selection-menu button:focus-visible {
-			color: red;
-		}
-
-		.gtfo-comment-group h2 {
-			font-size: 14px;
-			margin: 0 0 8px;
-			cursor: pointer;
-			color: white;
-			overflow-wrap: normal;
-			white-space: nowrap;
-		}
-
-		.gtfo-comment-group h2:hover,
-		.gtfo-comment-group-active h2 {
 			color: red;
 		}
 
@@ -697,14 +734,14 @@
 	<div id="gtfo-grabber-topbar">
 		<button class="gtfo-tab-button" data-tab="Page">Page</button>
 		<button class="gtfo-tab-button" data-tab="Urls">Urls</button>
-		<button class="gtfo-tab-button" data-tab="Comments">Comments</button>
+		<button class="gtfo-tab-button" data-tab="Sources">Sources</button>
 		<button class="gtfo-tab-button" data-tab="Images">Images</button>
 	</div>
 	<div id="gtfo-report-meta"></div>
 	<textarea id="gtfo_embedded_data"></textarea>
 	<div id="Page" class="tabcontent"></div>
 	<div id="Urls" class="tabcontent"></div>
-	<div id="Comments" class="tabcontent"></div>
+	<div id="Sources" class="tabcontent"></div>
 	<div id="Images" class="tabcontent"></div>
 
 	<script src="../js/vendor/js-beautify/beautify.min.js"></script>

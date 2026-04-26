@@ -12,13 +12,18 @@
     "48": "icons/GTFO_48.png",
     "96": "icons/GTFO_96.png"
     },
-    "browser_action": {
+  "browser_action": {
     "default_icon": {
       "48": "icons/GTFO_48.png",
       "96": "icons/GTFO_96.png"
     },
     "default_title": "GTFO",
     "default_popup": "popup/popup.html"
+  },
+  "background": {
+    "scripts": [
+      "js/background.js"
+    ]
   },
   "browser_specific_settings": {
     "gecko": {
