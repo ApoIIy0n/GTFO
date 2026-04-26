@@ -20,7 +20,10 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "{379f97b0-a00f-4e06-a310-5756e5ac19d8}"
+      "id": "{379f97b0-a00f-4e06-a310-5756e5ac19d8}",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }  
     }
   },
   "content_scripts": [
