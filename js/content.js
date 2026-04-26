@@ -1,42 +1,10 @@
 var debugging = false;
-var hostName = window.location.host.replace(".","_");
+var hostName = window.location.host.replace(/[^a-z0-9_-]/gi, '_');
 
-const randomize = (n, r = '') => {
+var randomize = (n, r = '') => {
 	while (n--) r += String.fromCharCode((r = Math.random() * 62 | 0, r += r > 9 ? (r < 36 ? 55 : 61) : 48));
 	return r;
 };
-
-console.log(`hostName: ${hostName}`);
-
-function handleMutations(mutations) {
-	mutations.forEach(function(mutation) {
-		if (mutation.target.id == 'overlay')
-		{
-			if (window.location.hostname === 'www.nzbserver.com') {
-				var elements = document.getElementsByClassName('nzbDownloadButton');
-				var elementsArray = Array.from(elements);
-				elementsArray.forEach(function(element) {
-					if (!element.hasAttribute('touched'))
-					{
-						if (!element.hasAttribute('GTFO'))
-						{
-							element.setAttribute('GTFO', true);
-							var href = element.getAttribute('href');
-							element.setAttribute('href', href.replace('nzbserver', 'clubnzb'));
-						}
-					}
-				});
-			}
-		}
-	});
-  }
-  
-// Create a MutationObserver
-var observer = new MutationObserver(handleMutations);
-
-// Configure the observer to watch for changes in the entire document
-var observerConfig = { childList: true, subtree: true };
-observer.observe(document, observerConfig);
 
 // set to a fixed string for now because of CSS styling
 var randomString = 'GTFO-BODY';//randomize(Math.floor(Math.random() * (8 - 2 + 1) + 2));
@@ -178,8 +146,8 @@ function gtfo_Grabber_GetSelectedUrls() {
 
 	for (let checkBox of checkBoxes) {
 		if (checkBox.checked) {
-			for (childNode of checkBox.parentNode.childNodes) {
-				if (childNode.id.includes("urllabel") && childNode.children.length > 0) {
+			for (let childNode of checkBox.parentNode.childNodes) {
+				if (childNode.id && childNode.id.includes("urllabel") && childNode.children.length > 0) {
 					selectedItems.push(childNode.children[0].href)
 					break;
 				}
@@ -203,13 +171,13 @@ function gtfo_Grabber_Save() {
 		downloadLink.href = "data:application/octet-stream," + encodeURIComponent(selectedItems.join('\r\n'));
 		downloadLink.download = `urls_${hostName}_${new Date().getTime()}.txt`;
 		downloadLink.click();
-		document.removeelem
 	}
 }
 
 function gtfo_GetCommentsFromData(data) {
 	var source = String(data || '');
 	var scriptCommentsCleaned = [];
+	var scriptCommentSet = new Set();
 	var state = 'code';
 	var stringReturnState = 'code';
 	var templateExpressionDepth = 0;
@@ -220,8 +188,10 @@ function gtfo_GetCommentsFromData(data) {
 		comment = String(comment || '').replace(/\t/g, '').trim();
 		if (comment.endsWith(','))
 			comment = comment.slice(0, -1);
-		if (comment && !scriptCommentsCleaned.includes(comment))
+		if (comment && !scriptCommentSet.has(comment)) {
+			scriptCommentSet.add(comment);
 			scriptCommentsCleaned.push(comment);
+		}
 	}
 
 	function isEscaped(index) {
@@ -315,11 +285,14 @@ function gtfo_GetCommentsFromData(data) {
 function gtfo_GetCssCommentsFromData(data) {
 	var cssComments = Array.from(String(data || '').matchAll(/\/\*[\s\S]*?\*\//g));
 	var cssCommentsCleaned = [];
+	var cssCommentSet = new Set();
 
 	for (let commentMatch of cssComments) {
 		var comment = commentMatch[0].trim();
-		if (comment && !cssCommentsCleaned.includes(comment))
+		if (comment && !cssCommentSet.has(comment)) {
+			cssCommentSet.add(comment);
 			cssCommentsCleaned.push(comment);
+		}
 	}
 
 	return cssCommentsCleaned;
@@ -327,8 +300,9 @@ function gtfo_GetCssCommentsFromData(data) {
 
 async function gtfo_GetCommentsDiv() {
 	// html
-	htmlComments = [];
-	nodeIterator = document.createTreeWalker(document, NodeFilter.SHOW_COMMENT, null, null);
+	var htmlComments = [];
+	var nodeIterator = document.createTreeWalker(document, NodeFilter.SHOW_COMMENT, null, null);
+	var comment;
 
 	var htmlTreeViewHtmlItems = getElement('ul', 'gtfo-comments-treeview-nested', 'gtfo-comments-treeview-nested', null);
 
@@ -357,13 +331,13 @@ async function gtfo_GetCommentsDiv() {
 	htmlTreeViewLi.appendChild(htmlTreeViewHtmlItems);
 
 	// js
-	jsComments = [];
+	var jsComments = [];
 	var scripts = document.getElementsByTagName('script');
 
 	var scriptResults = [];
 	var scriptCommentsCleaned = [];
 
-	pageScripts = { file: 'Page', location: null, comments: [] };
+	var pageScripts = { file: 'Page', location: null, comments: [] };
 	for (let i = 0; i < scripts.length; i++) {
 		// slow process, needs to be downloaded..
 		if (scripts[i].src) {
@@ -565,6 +539,7 @@ function gtfo_Images_Save(image, fileName) {
 	link.setAttribute("href", image);
 	link.setAttribute("download", fileName);
 	link.click();
+	link.remove();
 }
 
 async function gtfo_Images_Copy(base64Data) {
@@ -634,13 +609,16 @@ function gtfo_IsURL(str) {
 
 function gtfo_GetHtmlComments() {
 	var comments = [];
+	var commentSet = new Set();
 	var nodeIterator = document.createTreeWalker(document, NodeFilter.SHOW_COMMENT, null, null);
 	var comment;
 
 	while (comment = nodeIterator.nextNode()) {
 		var text = comment.textContent.trim();
-		if (text && !comments.includes(text))
+		if (text && !commentSet.has(text)) {
+			commentSet.add(text);
 			comments.push(text);
+		}
 	}
 
 	return comments;
@@ -648,14 +626,17 @@ function gtfo_GetHtmlComments() {
 
 function gtfo_GetInlineScriptComments() {
 	var comments = [];
+	var commentSet = new Set();
 	var scripts = document.getElementsByTagName('script');
 
 	for (let script of scripts) {
 		if (!script.src) {
 			var scriptComments = gtfo_GetCommentsFromData(script.textContent);
 			for (let scriptComment of scriptComments) {
-				if (!comments.includes(scriptComment))
+				if (!commentSet.has(scriptComment)) {
+					commentSet.add(scriptComment);
 					comments.push(scriptComment);
+				}
 			}
 		}
 	}
@@ -664,21 +645,21 @@ function gtfo_GetInlineScriptComments() {
 }
 
 function gtfo_GetUrlList() {
-	var urls = [];
+	var urls = new Set();
 
 	for (let link of document.links) {
 		if (link.href)
-			urls.push(decodeURI(link.href));
+			urls.add(decodeURI(link.href));
 	}
 
-	urls = [...new Set(urls)];
+	urls = Array.from(urls);
 	urls.sort();
 	return urls;
 }
 
 function gtfo_GetImageList() {
 	var images = [];
-	var imageUrls = [];
+	var imageUrls = new Set();
 
 	function getImageTypeFromUrl(url) {
 		var cleanUrl = String(url || '').split('?')[0].split('#')[0];
@@ -687,10 +668,10 @@ function gtfo_GetImageList() {
 	}
 
 	function addImage(image) {
-		if (!image.url || imageUrls.includes(image.url))
+		if (!image.url || imageUrls.has(image.url))
 			return;
 
-		imageUrls.push(image.url);
+		imageUrls.add(image.url);
 		images.push(image);
 	}
 
@@ -736,71 +717,82 @@ async function gtfo_GetTextFromUrl(url) {
 			console.log(`Can't load source: ${url}`);
 	}
 
-	try {
-		var backgroundResponse = await browser.runtime.sendMessage({
-			type: 'gtfo_fetch_text',
-			url: url
-		});
+	if (browser.runtime && browser.runtime.sendMessage) {
+		try {
+			var backgroundResponse = await browser.runtime.sendMessage({
+				type: 'gtfo_fetch_text',
+				url: url
+			});
 
-		if (backgroundResponse && backgroundResponse.ok)
-			return backgroundResponse.text;
-	}
-	catch (error) {
-		if (debugging)
-			console.log(`Can't load source through background: ${url}`);
+			if (backgroundResponse && backgroundResponse.ok)
+				return backgroundResponse.text;
+		}
+		catch (error) {
+			if (debugging)
+				console.log(`Can't load source through background: ${url}`);
+		}
 	}
 
 	return null;
 }
 
 async function gtfo_GetScriptList() {
-	var scripts = [];
+	var pageScriptSources = [];
+	var pageScriptComments = [];
+	var pageScriptCommentSet = new Set();
+	var externalScriptPromises = [];
 
-	for (let script of document.getElementsByTagName('script')) {
+	for (let script of document.scripts) {
 		if (script.src) {
-			var source = await gtfo_GetTextFromUrl(script.src);
-			scripts.push({
-				url: script.src,
-				source: source || `Unable to load source: ${script.src}`,
-				comments: source ? gtfo_GetCommentsFromData(source) : []
-			});
+			externalScriptPromises.push((async () => {
+				var source = await gtfo_GetTextFromUrl(script.src);
+				return {
+					url: script.src,
+					source: source || `Unable to load source: ${script.src}`,
+					comments: source ? gtfo_GetCommentsFromData(source) : []
+				};
+			})());
 		}
-		else {
-			scripts.push({
-				url: 'Page',
-				source: script.textContent,
-				comments: gtfo_GetCommentsFromData(script.textContent)
-			});
+		else if (script.textContent) {
+			pageScriptSources.push(script.textContent);
+			for (let comment of gtfo_GetCommentsFromData(script.textContent)) {
+				if (!pageScriptCommentSet.has(comment)) {
+					pageScriptCommentSet.add(comment);
+					pageScriptComments.push(comment);
+				}
+			}
 		}
+	}
+
+	var scripts = await Promise.all(externalScriptPromises);
+	if (pageScriptSources.length > 0) {
+		scripts.unshift({
+			url: 'Page',
+			source: pageScriptSources.join('\n\n'),
+			comments: pageScriptComments
+		});
 	}
 
 	return scripts;
 }
 
 async function gtfo_GetCssList() {
-	var stylesheets = [];
+	var stylesheetPromises = [];
 
 	for (let stylesheet of document.styleSheets) {
 		if (stylesheet.href) {
-			var source = await gtfo_GetTextFromUrl(stylesheet.href);
-			stylesheets.push({
-				url: stylesheet.href,
-				source: source || `Unable to load source: ${stylesheet.href}`,
-				comments: source ? gtfo_GetCssCommentsFromData(source) : []
-			});
+			stylesheetPromises.push((async () => {
+				var source = await gtfo_GetTextFromUrl(stylesheet.href);
+				return {
+					url: stylesheet.href,
+					source: source || `Unable to load source: ${stylesheet.href}`,
+					comments: source ? gtfo_GetCssCommentsFromData(source) : []
+				};
+			})());
 		}
 	}
 
-	return stylesheets;
-}
-
-function gtfo_EscapeHtml(value) {
-	return String(value)
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;')
-		.replace(/'/g, '&#039;');
+	return Promise.all(stylesheetPromises);
 }
 
 function gtfo_GetFullDocumentSource() {
@@ -820,9 +812,13 @@ function gtfo_GetFullDocumentSource() {
 
 async function gtfo_GetEmbeddedData() {
 	var htmlComments = gtfo_GetHtmlComments();
-	var scripts = await gtfo_GetScriptList();
-	var stylesheets = await gtfo_GetCssList();
+	var scriptsPromise = gtfo_GetScriptList();
+	var stylesheetsPromise = gtfo_GetCssList();
 	var pageSource = gtfo_GetFullDocumentSource();
+	var urls = gtfo_GetUrlList();
+	var images = gtfo_GetImageList();
+	var scripts = await scriptsPromise;
+	var stylesheets = await stylesheetsPromise;
 
 	return {
 		pageUrl: window.location.href,
@@ -837,253 +833,13 @@ async function gtfo_GetEmbeddedData() {
 		},
 		js: scripts,
 		css: stylesheets,
-		urls: gtfo_GetUrlList(),
+		urls: urls,
 		comments: {
 			html: htmlComments,
 			javascript: scripts.flatMap((script) => script.comments || [])
 		},
-		images: gtfo_GetImageList()
+		images: images
 	};
-}
-
-function gtfo_GetReportHtml(data) {
-	var reportTitle = `GTFO: ${data.host || data.title}`;
-	var embeddedData = gtfo_EscapeHtml(JSON.stringify(data));
-
-	return `<!doctype html>
-<html>
-<head>
-	<meta charset="utf-8">
-	<title>${gtfo_EscapeHtml(reportTitle)}</title>
-	<style>
-		body { margin: 0; background: #313131; color: white; font-family: Consolas, monospace; }
-		#gtfo-grabber-topbar { height: 30px; background: #1a1a1a; display: flex; align-items: stretch; }
-		.gtfo-tab-button, .gtfo-tool-button { cursor: pointer; background: transparent; border: 1px solid currentColor; color: white; font: 12px Consolas, monospace; padding: 3px 18px; margin-right: 1px; }
-		.gtfo-tab-button:hover, .gtfo-tool-button:hover, .gtfo-tab-button-active { color: red; border-color: red; }
-		#gtfo-report-meta { padding: 8px 10px; font-size: 12px; background: #262626; border-bottom: 1px solid #1a1a1a; }
-		#gtfo-report-meta a { color: white; }
-		.tabcontent { display: none; }
-		.tabcontent-active { display: block; }
-		#Urls { height: calc(100vh - 68px); overflow: auto; }
-		#gtfo-urls-toolbar { height: 25px; background: #313131; display: flex; align-items: center; gap: 8px; padding: 0 6px; position: sticky; top: 0; }
-		.gtfo-url-row { display: flex; align-items: center; min-height: 18px; font-size: 12px; }
-		.gtfo-url-row:nth-child(odd) { background: #313131; }
-		.gtfo-url-row:nth-child(even) { background: #414141; }
-		.gtfo-url-row input { margin: 0 6px; width: 15px; height: 15px; accent-color: #1a1a1a; }
-		.gtfo-url-row a { color: white; text-decoration: none; overflow-wrap: anywhere; }
-		.gtfo-url-row a:hover { color: red; }
-		#Page iframe { width: 100%; height: calc(100vh - 68px); border: 0; background: white; }
-		#Comments, #Images { padding: 10px; }
-		.gtfo-comment-group { margin-bottom: 18px; }
-		.gtfo-comment-group h2 { font-size: 14px; margin: 0 0 8px; }
-		.gtfo-comment-group li { margin-bottom: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
-		.gtfo-image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-		.gtfo-image-card { border: 1px solid #555; background: #262626; padding: 8px; }
-		.gtfo-image-card img { display: block; max-width: 100%; max-height: 180px; margin: 0 auto 8px; object-fit: contain; }
-		.gtfo-image-card a { color: white; font-size: 12px; overflow-wrap: anywhere; }
-		#gtfo_embedded_data { display: none; }
-	</style>
-</head>
-<body>
-	<textarea id="gtfo_embedded_data">${embeddedData}</textarea>
-	<div id="gtfo-grabber-topbar">
-		<button class="gtfo-tab-button" data-tab="Page">Page</button>
-		<button class="gtfo-tab-button" data-tab="Urls">Urls</button>
-		<button class="gtfo-tab-button" data-tab="Comments">Comments</button>
-		<button class="gtfo-tab-button" data-tab="Images">Images</button>
-	</div>
-	<div id="gtfo-report-meta"></div>
-	<div id="Page" class="tabcontent"></div>
-	<div id="Urls" class="tabcontent"></div>
-	<div id="Comments" class="tabcontent"></div>
-	<div id="Images" class="tabcontent"></div>
-	<script>
-		const data = JSON.parse(document.getElementById('gtfo_embedded_data').value);
-		document.title = 'GTFO: ' + (data.host || data.title || 'Page');
-
-		function escapeHtml(value) {
-			return String(value)
-				.replace(/&/g, '&amp;')
-				.replace(/</g, '&lt;')
-				.replace(/>/g, '&gt;')
-				.replace(/"/g, '&quot;')
-				.replace(/'/g, '&#039;');
-		}
-
-		function switchTab(tabName) {
-			document.querySelectorAll('.tabcontent').forEach((tab) => {
-				tab.classList.toggle('tabcontent-active', tab.id === tabName);
-			});
-			document.querySelectorAll('.gtfo-tab-button').forEach((button) => {
-				button.classList.toggle('gtfo-tab-button-active', button.dataset.tab === tabName);
-			});
-		}
-
-		function selectedUrls() {
-			return Array.from(document.querySelectorAll('.gtfo-url-input:checked')).map((input) => input.value);
-		}
-
-		function clearElement(element) {
-			element.replaceChildren();
-		}
-
-		function appendReportMeta(container, title, url) {
-			clearElement(container);
-
-			const strong = document.createElement('strong');
-			strong.textContent = title || '';
-
-			const link = document.createElement('a');
-			link.href = url || '#';
-			link.textContent = url || '';
-
-			container.appendChild(strong);
-			container.append(' - ');
-			container.appendChild(link);
-		}
-
-		function createToolButton(id, text) {
-			const button = document.createElement('button');
-			button.className = 'gtfo-tool-button';
-			button.id = id;
-			button.type = 'button';
-			button.textContent = text;
-			return button;
-		}
-
-		function createUrlToolbar() {
-			const toolbar = document.createElement('div');
-			toolbar.id = 'gtfo-urls-toolbar';
-
-			toolbar.appendChild(createToolButton('gtfo-copy-urls', 'Copy'));
-			toolbar.appendChild(createToolButton('gtfo-save-urls', 'Save'));
-
-			const label = document.createElement('label');
-			const checkbox = document.createElement('input');
-			checkbox.type = 'checkbox';
-			checkbox.id = 'gtfo-select-all';
-			label.appendChild(checkbox);
-			label.append(' Select all');
-
-			toolbar.appendChild(label);
-			return toolbar;
-		}
-
-		function createUrlRow(url, index, total) {
-			const row = document.createElement('div');
-			row.className = 'gtfo-url-row';
-
-			const input = document.createElement('input');
-			input.className = 'gtfo-url-input';
-			input.type = 'checkbox';
-			input.value = url;
-
-			const link = document.createElement('a');
-			link.href = url;
-			link.textContent = String(index + 1).padStart(String(total).length, '0') + ': ' + url;
-
-			row.appendChild(input);
-			row.appendChild(link);
-			return row;
-		}
-
-		function appendImageCard(parent, image) {
-			const card = document.createElement('div');
-			card.className = 'gtfo-image-card';
-
-			const img = document.createElement('img');
-			img.src = image;
-			img.alt = '';
-
-			const link = document.createElement('a');
-			link.href = image;
-			link.textContent = image;
-
-			card.appendChild(img);
-			card.appendChild(link);
-			parent.appendChild(card);
-		}
-
-		function buildPage() {
-			appendReportMeta(document.getElementById('gtfo-report-meta'), data.title || data.host, data.url);
-
-			const page = document.getElementById('Page');
-			const iframe = document.createElement('iframe');
-			iframe.setAttribute('sandbox', '');
-			iframe.srcdoc = data.pageHtml;
-			page.appendChild(iframe);
-		}
-
-		function buildUrls() {
-			const urls = document.getElementById('Urls');
-			urls.appendChild(createUrlToolbar());
-
-			data.urls.forEach((url, index) => {
-				urls.appendChild(createUrlRow(url, index, data.urls.length));
-			});
-
-			document.getElementById('gtfo-select-all').addEventListener('change', (event) => {
-				document.querySelectorAll('.gtfo-url-input').forEach((input) => input.checked = event.target.checked);
-			});
-			document.getElementById('gtfo-copy-urls').addEventListener('click', () => navigator.clipboard.writeText(selectedUrls().join('\\r\\n')));
-			document.getElementById('gtfo-save-urls').addEventListener('click', () => {
-				const link = document.createElement('a');
-				link.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(selectedUrls().join('\\r\\n'));
-				link.download = 'urls_' + (data.host || 'page').replace(/[^a-z0-9_-]/gi, '_') + '_' + Date.now() + '.txt';
-				link.click();
-			});
-		}
-
-		function buildComments() {
-			const comments = document.getElementById('Comments');
-			const groups = [
-				{ title: 'HTML', items: data.comments.html },
-				{ title: 'JavaScript', items: data.comments.javascript }
-			];
-
-			groups.forEach((group) => {
-				const section = document.createElement('section');
-				section.className = 'gtfo-comment-group';
-
-				const heading = document.createElement('h2');
-				heading.textContent = group.title;
-				section.appendChild(heading);
-
-				const list = document.createElement('ul');
-				group.items.forEach((item) => {
-					const li = document.createElement('li');
-					li.textContent = item;
-					list.appendChild(li);
-				});
-				section.appendChild(list);
-				comments.appendChild(section);
-			});
-		}
-
-		function buildImages() {
-			const images = document.getElementById('Images');
-			const grid = document.createElement('div');
-			grid.className = 'gtfo-image-grid';
-
-			data.images.forEach((image) => {
-				appendImageCard(grid, image);
-			});
-
-			images.appendChild(grid);
-		}
-
-		document.querySelectorAll('.gtfo-tab-button').forEach((button) => {
-			button.addEventListener('click', () => switchTab(button.dataset.tab));
-		});
-
-		buildPage();
-		buildUrls();
-		buildComments();
-		buildImages();
-		switchTab('Urls');
-	</script>
-</body>
-</html>`;
 }
 
 async function gtfo_GetImagesDiv() {
@@ -1097,6 +853,7 @@ async function gtfo_GetImagesDiv() {
 	var imageContainer, imagePicture, imageInfo;
 	var imageButtonBar, imageCopyButton, imageSaveButton;
 	var imageDisplayInfo, imageType, imageSize, imageResolution;
+	var imageDisplay, backgroundImageProperties, maxImageSize;
 	var filteredImages = [];
 
 	// get all background images
@@ -1291,6 +1048,14 @@ function onError(error) {
 
 function gtfo_RightClick() {
 	const injectionCommand = e => e.stopPropagation();
+	const cleanup = () => {
+		document.removeEventListener('contextmenu', injectionCommand, true);
+		document.removeEventListener('copy', injectionCommand, true);
+		document.removeEventListener('dragstart', injectionCommand, true);
+		document.removeEventListener('mousedown', injectionCommand, true);
+		document.removeEventListener('paste', injectionCommand, true);
+		document.removeEventListener('selectstart', injectionCommand, true);
+	};
 
 	// adding evenlisteners to stop the events
 	document.addEventListener('contextmenu', injectionCommand, true);
@@ -1300,18 +1065,15 @@ function gtfo_RightClick() {
 	document.addEventListener('paste', injectionCommand, true);
 	document.addEventListener('selectstart', injectionCommand, true);
 
-	// removing the event listeners
-	window.pointers.run.add(() => {
-		document.removeEventListener('contextmenu', injectionCommand, true);
-		document.removeEventListener('copy', injectionCommand, true);
-		document.removeEventListener('dragstart', injectionCommand, true);
-		document.removeEventListener('mousedown', injectionCommand, true);
-		document.removeEventListener('paste', injectionCommand, true);
-		document.removeEventListener('selectstart', injectionCommand, true);
-	});
+	// removing the event listeners when the target page exposes the old cleanup hook
+	if (window.pointers && window.pointers.run && typeof window.pointers.run.add == 'function')
+		window.pointers.run.add(cleanup);
 }
 
 browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
+	if (!request)
+		return Promise.resolve(true);
+
 	switch (request.type) {
 		case 'gtfo_ping':
 			break;
@@ -1321,8 +1083,7 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 		case 'gtfo_grabber':
 			var embeddedData = await gtfo_GetEmbeddedData();
 			return Promise.resolve({
-				data: embeddedData,
-				html: gtfo_GetReportHtml(embeddedData)
+				data: embeddedData
 			});
 		case 'gtfo_rightclick':
 			gtfo_RightClick();

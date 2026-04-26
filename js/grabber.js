@@ -27,7 +27,7 @@ function gtfoGetUrls(data) {
 		urls = urls.concat(data.urls);
 
 	if (Array.isArray(data.js))
-		urls = urls.concat(data.js.map((item) => item.url));
+		urls = urls.concat(data.js.map((item) => item.url).filter((url) => url && !gtfoIsPageScriptUrl(url)));
 
 	if (Array.isArray(data.css))
 		urls = urls.concat(data.css.map((item) => item.url));
@@ -316,6 +316,149 @@ function gtfoFindHtmlCommentRange(lines, comment) {
 	return null;
 }
 
+var gtfoCodeCommentRangeCache = new WeakMap();
+
+function gtfoGetCodeCommentRanges(lines, sourceType) {
+	var cachedRangesByType = gtfoCodeCommentRangeCache.get(lines);
+	if (cachedRangesByType && cachedRangesByType[sourceType])
+		return cachedRangesByType[sourceType];
+
+	var ranges = [];
+	var state = 'code';
+	var stringReturnState = 'code';
+	var templateExpressionDepth = 0;
+	var blockStartLine = 0;
+	var blockText = '';
+
+	function cacheRanges() {
+		cachedRangesByType = cachedRangesByType || {};
+		cachedRangesByType[sourceType] = ranges;
+		gtfoCodeCommentRangeCache.set(lines, cachedRangesByType);
+		return ranges;
+	}
+
+	function isEscaped(line, index) {
+		var slashCount = 0;
+		for (let scanIndex = index - 1; scanIndex >= 0 && line[scanIndex] == '\\'; scanIndex--)
+			slashCount++;
+		return slashCount % 2 == 1;
+	}
+
+	function returnToCodeState() {
+		return sourceType == 'javascript' && templateExpressionDepth > 0 ? 'template-expression' : 'code';
+	}
+
+	for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+		var line = String(lines[lineIndex] || '');
+
+		if (state == 'block-comment' && lineIndex > blockStartLine)
+			blockText += '\n';
+
+		for (let index = 0; index < line.length; index++) {
+			var character = line[index];
+			var nextCharacter = line[index + 1];
+
+			if (state == 'code') {
+				if (character == '"' || character == "'") {
+					stringReturnState = 'code';
+					state = character;
+				}
+				else if (sourceType == 'javascript' && character == '`')
+					state = 'template';
+				else if (sourceType == 'javascript' && character == '/' && nextCharacter == '/') {
+					ranges.push({
+						start: lineIndex,
+						end: lineIndex,
+						text: line.slice(index)
+					});
+					break;
+				}
+				else if (character == '/' && nextCharacter == '*') {
+					blockStartLine = lineIndex;
+					blockText = '/*';
+					state = 'block-comment';
+					index++;
+				}
+			}
+			else if (state == '"' || state == "'") {
+				if (character == state && !isEscaped(line, index))
+					state = stringReturnState;
+			}
+			else if (state == 'template') {
+				if (character == '`' && !isEscaped(line, index))
+					state = 'code';
+				else if (character == '$' && nextCharacter == '{' && !isEscaped(line, index)) {
+					templateExpressionDepth = 1;
+					state = 'template-expression';
+					index++;
+				}
+			}
+			else if (state == 'template-expression') {
+				if (character == '"' || character == "'") {
+					stringReturnState = 'template-expression';
+					state = character;
+				}
+				else if (character == '`')
+					state = 'template';
+				else if (character == '{')
+					templateExpressionDepth++;
+				else if (character == '}') {
+					templateExpressionDepth--;
+					if (templateExpressionDepth <= 0)
+						state = 'template';
+				}
+				else if (character == '/' && nextCharacter == '/') {
+					ranges.push({
+						start: lineIndex,
+						end: lineIndex,
+						text: line.slice(index)
+					});
+					break;
+				}
+				else if (character == '/' && nextCharacter == '*') {
+					blockStartLine = lineIndex;
+					blockText = '/*';
+					state = 'block-comment';
+					index++;
+				}
+			}
+			else if (state == 'block-comment') {
+				blockText += character;
+				if (character == '*' && nextCharacter == '/') {
+					blockText += '/';
+					ranges.push({
+						start: blockStartLine,
+						end: lineIndex,
+						text: blockText
+					});
+					blockText = '';
+					state = returnToCodeState();
+					index++;
+				}
+			}
+		}
+	}
+
+	return cacheRanges();
+}
+
+function gtfoFindCodeCommentRange(lines, comment, sourceType) {
+	var normalizedComment = gtfoNormalizeCommentText(comment, sourceType);
+	if (!normalizedComment)
+		return null;
+
+	for (let range of gtfoGetCodeCommentRanges(lines, sourceType)) {
+		var normalizedSourceComment = gtfoNormalizeCommentText(range.text, sourceType);
+		if (normalizedSourceComment == normalizedComment || normalizedSourceComment.includes(normalizedComment))
+			return {
+				start: range.start,
+				end: range.end
+			};
+	}
+
+	return null;
+}
+
 function gtfoIsCommentWrapperLine(line) {
 	var trimmed = String(line || '').trim();
 
@@ -341,6 +484,8 @@ function gtfoExpandCommentRange(lines, range) {
 function gtfoFindCommentRange(lines, comment, sourceType) {
 	if (sourceType == 'html')
 		return gtfoFindHtmlCommentRange(lines, comment);
+	if (sourceType == 'javascript' || sourceType == 'css')
+		return gtfoFindCodeCommentRange(lines, comment, sourceType);
 
 	var commentLines = gtfoGetCommentLines(comment, sourceType);
 	if (commentLines.length == 0)
@@ -1048,10 +1193,12 @@ function gtfoBuildUrls(data) {
 	var urls = gtfoGetUrls(data);
 	var urlContainer = document.getElementById('Urls');
 	urlContainer.appendChild(gtfoCreateUrlToolbar());
+	var urlFragment = document.createDocumentFragment();
 
 	urls.forEach((url, index) => {
-		urlContainer.appendChild(gtfoCreateUrlRow(url, index, urls.length));
+		urlFragment.appendChild(gtfoCreateUrlRow(url, index, urls.length));
 	});
+	urlContainer.appendChild(urlFragment);
 
 	document.getElementById('gtfo-select-all').addEventListener('change', (event) => {
 		document.querySelectorAll('.gtfo-url-input').forEach((input) => input.checked = event.target.checked);
@@ -1073,6 +1220,11 @@ function gtfoBuildComments(data) {
 	var prettifySource = false;
 	var foldedLinesBySource = new Map();
 	var selectedSourceLinesBySource = new Map();
+	var sourceTextBySource = new Map();
+	var sourceLinesBySource = new Map();
+	var highlightedLinesBySource = new Map();
+	var foldRangesBySource = new Map();
+	var activeSourceLineRows = [];
 	var isSelectingSourceLines = false;
 	var toggledSourceLinesDuringDrag = new Set();
 	var updateActiveSourceMarkers = null;
@@ -1095,7 +1247,7 @@ function gtfoBuildComments(data) {
 	});
 	document.addEventListener('selectionchange', () => {
 		if (updateActiveSourceMarkers)
-			updateActiveSourceMarkers();
+			scheduleSourceMarkerUpdate();
 	});
 
 	function scheduleSourceMarkerUpdate() {
@@ -1137,14 +1289,37 @@ function gtfoBuildComments(data) {
 		if (!sourceCode || !selection || selection.rangeCount == 0 || selection.isCollapsed)
 			return lineIndexes;
 
-		sourceCode.querySelectorAll('.gtfo-source-line').forEach((row) => {
-			for (let index = 0; index < selection.rangeCount; index++) {
-				if (selection.getRangeAt(index).intersectsNode(row)) {
-					lineIndexes.add(Number(row.dataset.lineIndex));
-					break;
-				}
+		function getRowFromNode(node) {
+			var element = node && (node.nodeType == Node.ELEMENT_NODE ? node : node.parentElement);
+			return element ? element.closest('.gtfo-source-line') : null;
+		}
+
+		for (let index = 0; index < selection.rangeCount; index++) {
+			var range = selection.getRangeAt(index);
+			if (!range.intersectsNode(sourceCode))
+				continue;
+
+			var startRow = getRowFromNode(range.startContainer);
+			var endRow = getRowFromNode(range.endContainer);
+			var startIndex = startRow ? Number(startRow.dataset.lineIndex) : 0;
+			var endIndex = endRow ? Number(endRow.dataset.lineIndex) : activeSourceLineRows.length - 1;
+
+			if (!Number.isFinite(startIndex) || !Number.isFinite(endIndex))
+				continue;
+
+			if (startIndex > endIndex) {
+				var swapIndex = startIndex;
+				startIndex = endIndex;
+				endIndex = swapIndex;
 			}
-		});
+
+			for (let lineIndex = startIndex; lineIndex <= endIndex; lineIndex++) {
+				if (!activeSourceLineRows[lineIndex] || activeSourceLineRows[lineIndex].classList.contains('gtfo-source-hidden'))
+					continue;
+
+				lineIndexes.add(lineIndex);
+			}
+		}
 
 		return lineIndexes;
 	}
@@ -1255,7 +1430,7 @@ function gtfoBuildComments(data) {
 	}
 
 	function gtfoGetFoldStateKey(group) {
-		return `${group.title}::${prettifySource ? 'pretty' : 'raw'}`;
+		return `${group.title}::${group.url || group.displayName || ''}::${prettifySource ? 'pretty' : 'raw'}`;
 	}
 
 	function gtfoGetSourceStateKey(group) {
@@ -1268,15 +1443,24 @@ function gtfoBuildComments(data) {
 		var sourcePanel = document.getElementById('gtfo-source-panel');
 		var sourceMarkers = document.getElementById('gtfo-source-markers');
 		var sourceType = gtfoGetSourceType(group);
-		var rawSource = group.source || 'Source was not available for this subject.';
-		var source = prettifySource ? gtfoFormatSource(rawSource, sourceType) : rawSource;
-		selectedComments = selectedComments || [];
-		var lines = source.split(/\r?\n/);
-		var selectedLineIndexes = gtfoBuildCommentLineSet(lines, selectedComments, sourceType);
-		var scrollRange = gtfoFindCommentRange(lines, scrollComment, sourceType);
-		var foldRanges = gtfoBuildFoldRanges(lines, sourceType);
 		var foldStateKey = gtfoGetFoldStateKey(group);
 		var sourceStateKey = gtfoGetSourceStateKey(group);
+		var rawSource = group.source || 'Source was not available for this subject.';
+		if (!sourceTextBySource.has(sourceStateKey))
+			sourceTextBySource.set(sourceStateKey, prettifySource ? gtfoFormatSource(rawSource, sourceType) : rawSource);
+		var source = sourceTextBySource.get(sourceStateKey);
+		selectedComments = selectedComments || [];
+		if (!sourceLinesBySource.has(sourceStateKey))
+			sourceLinesBySource.set(sourceStateKey, source.split(/\r?\n/));
+		var lines = sourceLinesBySource.get(sourceStateKey);
+		if (!highlightedLinesBySource.has(sourceStateKey))
+			highlightedLinesBySource.set(sourceStateKey, lines.map((line) => gtfoHighlightSyntax(line, sourceType) || ' '));
+		var highlightedLines = highlightedLinesBySource.get(sourceStateKey);
+		var selectedLineIndexes = gtfoBuildCommentLineSet(lines, selectedComments, sourceType);
+		var scrollRange = gtfoFindCommentRange(lines, scrollComment, sourceType);
+		if (!foldRangesBySource.has(sourceStateKey))
+			foldRangesBySource.set(sourceStateKey, gtfoBuildFoldRanges(lines, sourceType));
+		var foldRanges = foldRangesBySource.get(sourceStateKey);
 		var foldedLines = foldedLinesBySource.get(foldStateKey) || new Set();
 		var selectedSourceLines = selectedSourceLinesBySource.get(sourceStateKey) || new Set();
 		var lineNumberWidth = String(lines.length).length;
@@ -1293,6 +1477,8 @@ function gtfoBuildComments(data) {
 		sourceTitle.textContent = group.title;
 		gtfoClearElement(sourceCode);
 		gtfoClearElement(sourceMarkers);
+		var lineRows = [];
+		activeSourceLineRows = lineRows;
 
 		function updateSourceMarkers() {
 			gtfoClearElement(sourceMarkers);
@@ -1310,6 +1496,7 @@ function gtfoBuildComments(data) {
 			sourceMarkers.style.top = `${markerTop}px`;
 			sourceMarkers.style.height = `${markerHeight}px`;
 			sourceMarkers.style.width = `${markerWidth}px`;
+			var markerFragment = document.createDocumentFragment();
 
 			function appendMarker(lineIndex, className) {
 				if (lines.length <= 1)
@@ -1319,7 +1506,7 @@ function gtfoBuildComments(data) {
 				marker.className = className;
 				var markerTop = Math.max(0, Math.min(markerHeight - 3, (lineIndex / (lines.length - 1)) * markerHeight));
 				marker.style.top = `${markerTop}px`;
-				sourceMarkers.appendChild(marker);
+				markerFragment.appendChild(marker);
 			}
 
 			for (let lineIndex of selectedLineIndexes)
@@ -1330,39 +1517,51 @@ function gtfoBuildComments(data) {
 
 			for (let lineIndex of gtfoGetCyanSelectionLineIndexes())
 				appendMarker(lineIndex, 'gtfo-source-marker gtfo-source-marker-cyan');
+
+			sourceMarkers.appendChild(markerFragment);
 		}
 		updateActiveSourceMarkers = updateSourceMarkers;
 
-		function applySourceLineSelectionClasses() {
-			selectedSourceLinesBySource.set(sourceStateKey, selectedSourceLines);
-
-			sourceCode.querySelectorAll('.gtfo-source-line').forEach((row) => {
-				row.classList.toggle('gtfo-source-line-selected', selectedSourceLines.has(Number(row.dataset.lineIndex)));
-			});
-			updateSourceMarkers();
+		function updateSourceLineSelectionClass(lineIndex) {
+			var row = lineRows[lineIndex];
+			if (row)
+				row.classList.toggle('gtfo-source-line-selected', selectedSourceLines.has(lineIndex));
 		}
 
 		function setSourceLineSelection(lineIndex, additive) {
+			var changedLineIndexes = new Set();
+
 			if (additive) {
-				if (selectedSourceLines.has(lineIndex))
+				if (selectedSourceLines.has(lineIndex)) {
 					selectedSourceLines.delete(lineIndex);
-				else
+					changedLineIndexes.add(lineIndex);
+				}
+				else {
 					selectedSourceLines.add(lineIndex);
+					changedLineIndexes.add(lineIndex);
+				}
 			}
-			else if (selectedSourceLines.has(lineIndex))
+			else if (selectedSourceLines.has(lineIndex)) {
+				for (let selectedLineIndex of selectedSourceLines)
+					changedLineIndexes.add(selectedLineIndex);
 				selectedSourceLines.clear();
+			}
 			else {
+				for (let selectedLineIndex of selectedSourceLines)
+					changedLineIndexes.add(selectedLineIndex);
 				selectedSourceLines.clear();
 				selectedSourceLines.add(lineIndex);
+				changedLineIndexes.add(lineIndex);
 			}
-			applySourceLineSelectionClasses();
+
+			selectedSourceLinesBySource.set(sourceStateKey, selectedSourceLines);
+			for (let changedLineIndex of changedLineIndexes)
+				updateSourceLineSelectionClass(changedLineIndex);
+			scheduleSourceMarkerUpdate();
 		}
 
 		function applyFoldVisibility() {
-			var rows = sourceCode.querySelectorAll('.gtfo-source-line');
-
-			rows.forEach((row) => {
-				var lineIndex = Number(row.dataset.lineIndex);
+			lineRows.forEach((row, lineIndex) => {
 				var hidden = false;
 
 				for (let [foldStart, foldEnd] of foldRanges) {
@@ -1382,6 +1581,7 @@ function gtfoBuildComments(data) {
 			});
 		}
 
+		var lineFragment = document.createDocumentFragment();
 		lines.forEach((line, index) => {
 			var lineElement = document.createElement('div');
 			var lineMatches = selectedLineIndexes.has(index);
@@ -1447,17 +1647,18 @@ function gtfoBuildComments(data) {
 
 			var lineCode = document.createElement('span');
 			lineCode.className = 'gtfo-line-code';
-			gtfoSetHighlightedSyntax(lineCode, gtfoHighlightSyntax(line, sourceType) || ' ');
+			gtfoSetHighlightedSyntax(lineCode, highlightedLines[index]);
 
 			lineElement.appendChild(lineNumber);
 			lineElement.appendChild(lineCode);
-			sourceCode.appendChild(lineElement);
+			lineRows[index] = lineElement;
+			lineFragment.appendChild(lineElement);
 		});
+		sourceCode.appendChild(lineFragment);
 
 		applyFoldVisibility();
 		foldedLinesBySource.set(foldStateKey, foldedLines);
 		selectedSourceLinesBySource.set(sourceStateKey, selectedSourceLines);
-		updateSourceMarkers();
 
 		if (scrollRange) {
 			var firstHighlight = sourceCode.querySelector('.gtfo-source-scroll-target') || sourceCode.querySelector('.gtfo-source-highlight');

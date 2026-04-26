@@ -78,7 +78,8 @@ GTFO/
 ├── icons/
 │   └── GTFO.png          # Extension icon
 ├── js/
-│   ├── background.js     # Reserved for future background logic
+│   ├── auto.js           # Tiny host-specific automatic page fix
+│   ├── background.js     # Background fetch helper for page resources
 │   ├── content.js        # Content script and page-data collection logic
 │   ├── grabber.js        # Local Grabber report UI
 │   └── script.js         # Popup actions and tab communication
@@ -110,8 +111,8 @@ This extension currently uses **Manifest V2** and Firefox’s `browser.*` WebExt
 Main flow:
 
 1. `popup/popup.html` loads `js/script.js`.
-2. When the user clicks **Grabber**, `script.js` sends a message to the active tab.
-3. `js/content.js` collects page URLs, comments, scripts, stylesheets, images, and page source.
+2. When the user clicks a tool, `script.js` injects `js/content.js` into the active tab if it is not already loaded.
+3. For **Grabber**, `js/content.js` collects page URLs, comments, scripts, stylesheets, images, and page source.
 4. The collected data is saved in `browser.storage.local`.
 5. `html/grabber.html` opens in a new tab and `js/grabber.js` renders the report.
 

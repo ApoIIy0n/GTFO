@@ -11,7 +11,7 @@
   "icons": {
     "48": "icons/GTFO_48.png",
     "96": "icons/GTFO_96.png"
-    },
+  },
   "browser_action": {
     "default_icon": {
       "48": "icons/GTFO_48.png",
@@ -36,10 +36,10 @@
   "content_scripts": [
     {
       "matches": [
-        "<all_urls>"
+        "*://www.nzbserver.com/*"
       ],
       "js": [
-        "js/content.js"
+        "js/auto.js"
       ],
       "run_at": "document_end"
     }

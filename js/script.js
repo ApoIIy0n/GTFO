@@ -1,5 +1,8 @@
-function getActiveTab() {
-	return browser.tabs.query({ active: true, currentWindow: true });
+async function getActiveTab() {
+	var tabs = await browser.tabs.query({ active: true, currentWindow: true });
+	if (!tabs || tabs.length == 0)
+		throw new Error('No active tab found.');
+	return tabs[0];
 }
 
 async function openGrabberReport(data) {
@@ -9,17 +12,16 @@ async function openGrabberReport(data) {
 
 async function sendTabMessage(subject, value) {
 	try {
-		var tabs = await getActiveTab();
-		var tab = tabs[0];
+		var tab = await getActiveTab();
 
 		if (subject != 'gtfo_grabber')
-			await browser.tabs.insertCSS(tab.id, { file: 'css/page.css', allFrames: false });
+			await browser.tabs.insertCSS(tab.id, { file: '/css/page.css', allFrames: false });
 
 		try {
 			await browser.tabs.sendMessage(tab.id, { type: 'gtfo_ping' });
 		}
 		catch (error) {
-			await browser.tabs.executeScript(tab.id, { file: 'js/content.js', allFrames: false });
+			await browser.tabs.executeScript(tab.id, { file: '/js/content.js', allFrames: false });
 		}
 
 		var response = await browser.tabs.sendMessage(tab.id, { type: subject, params: value });
@@ -53,19 +55,20 @@ function onError(error) {
 	console.log(`Error: ${error}`);
 }
 
-function injectPage(type, file, title) {
-	var tabs = getCurrentWindowTabs().then((tabs) => {
+function injectPage(file, title) {
+	var pageUrl = browser.runtime.getURL(file);
+	getCurrentWindowTabs().then((tabs) => {
 		var openTab = null;
 		if (tabs) {
 			for (let tab of tabs) {
-				if (tab.title == title)
+				if (tab.url == pageUrl || tab.title == title)
 					openTab = tab;
 			}
 		}
 
 		if (!openTab) {
 			let creating = browser.tabs.create({
-				"url": file
+				url: pageUrl
 			});
 			creating.then(onCreated, onError);
 		}
@@ -91,7 +94,7 @@ function listenForClicks() {
 				sendTabMessage("gtfo_rightclick", null);
 				break;
 			case "gtfo_settings":
-				injectPage("url", "../html/settings.html", "GTFO Settings");
+				injectPage("html/settings.html", "GTFO Settings");
 				break;
 
 		}
