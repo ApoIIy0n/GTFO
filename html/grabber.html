@@ -305,6 +305,7 @@
 			user-select: none;
 			border-right: 1px solid #333;
 			margin-right: 10px;
+			cursor: pointer;
 		}
 
 		.gtfo-fold-toggle {
@@ -335,6 +336,12 @@
 
 		.gtfo-line-code {
 			white-space: pre;
+		}
+
+		#gtfo-source-code::selection,
+		#gtfo-source-code *::selection {
+			background: #00c8ff;
+			color: #050505;
 		}
 
 		.hljs-comment,

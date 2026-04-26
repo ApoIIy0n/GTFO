@@ -557,7 +557,8 @@ function gtfoCreateCommentLayout() {
 	[
 		{ value: 'all', label: 'All selected' },
 		{ value: 'red', label: 'Red' },
-		{ value: 'green', label: 'Green' }
+		{ value: 'green', label: 'Green' },
+		{ value: 'cyan', label: 'Cyan' }
 	].forEach((optionData) => {
 		var option = document.createElement('button');
 		option.type = 'button';
@@ -1048,7 +1049,48 @@ function gtfoBuildComments(data) {
 		sourceResizeObserver.observe(document.getElementById('gtfo-source-panel'));
 	}
 
+	function gtfoGetCyanSelectionText() {
+		var sourceCode = document.getElementById('gtfo-source-code');
+		var selection = window.getSelection();
+		if (!sourceCode || !selection || selection.rangeCount == 0 || selection.isCollapsed)
+			return '';
+
+		for (let index = 0; index < selection.rangeCount; index++) {
+			var range = selection.getRangeAt(index);
+			if (range.intersectsNode(sourceCode))
+				return selection.toString();
+		}
+
+		return '';
+	}
+
+	function gtfoNormalizeSelectionText(value) {
+		return String(value || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+	}
+
+	function gtfoAppendUniqueSelectionText(sourceText, cyanText) {
+		if (!cyanText)
+			return sourceText;
+		if (!sourceText)
+			return cyanText;
+
+		var normalizedSource = gtfoNormalizeSelectionText(sourceText);
+		var normalizedCyan = gtfoNormalizeSelectionText(cyanText);
+		if (normalizedSource.includes(normalizedCyan))
+			return sourceText;
+
+		var uniqueCyanLines = normalizedCyan.split('\n').filter((line) => {
+			return line == '' || !normalizedSource.includes(line);
+		}).join('\r\n');
+
+		return uniqueCyanLines ? `${sourceText}\r\n${uniqueCyanLines}` : sourceText;
+	}
+
 	function gtfoGetSourceSelectionText(mode) {
+		var cyanSelection = gtfoGetCyanSelectionText();
+		if (mode == 'cyan')
+			return cyanSelection;
+
 		var rows = Array.from(document.querySelectorAll('#gtfo-source-code .gtfo-source-line'));
 		var selectedRows = rows.filter((row) => {
 			var isRed = row.classList.contains('gtfo-source-highlight');
@@ -1061,10 +1103,15 @@ function gtfoBuildComments(data) {
 			return isRed || isGreen;
 		});
 
-		return selectedRows.map((row) => {
+		var sourceLines = selectedRows.map((row) => {
 			var lineCode = row.querySelector('.gtfo-line-code');
 			return lineCode ? lineCode.textContent : '';
 		}).join('\r\n');
+
+		if (mode == 'all' && cyanSelection)
+			return gtfoAppendUniqueSelectionText(sourceLines, cyanSelection);
+
+		return sourceLines;
 	}
 
 	function gtfoGetSelectionTimestamp() {
@@ -1258,7 +1305,9 @@ function gtfoBuildComments(data) {
 			if (selectedSourceLines.has(index))
 				lineElement.classList.add('gtfo-source-line-selected');
 
-			lineElement.addEventListener('mousedown', (event) => {
+			var lineNumber = document.createElement('span');
+			lineNumber.className = 'gtfo-line-number';
+			lineNumber.addEventListener('mousedown', (event) => {
 				if (event.button != 0)
 					return;
 
@@ -1267,15 +1316,12 @@ function gtfoBuildComments(data) {
 				setSourceLineSelection(index, event.altKey || event.getModifierState('Alt'));
 				event.preventDefault();
 			});
-			lineElement.addEventListener('mouseenter', (event) => {
+			lineNumber.addEventListener('mouseenter', (event) => {
 				if (isSelectingSourceLines && event.buttons == 1 && (event.altKey || event.getModifierState('Alt')) && !toggledSourceLinesDuringDrag.has(index)) {
 					toggledSourceLinesDuringDrag.add(index);
 					setSourceLineSelection(index, true);
 				}
 			});
-
-			var lineNumber = document.createElement('span');
-			lineNumber.className = 'gtfo-line-number';
 
 			if (foldRanges.has(index)) {
 				var foldToggle = document.createElement('button');
@@ -1283,6 +1329,10 @@ function gtfoBuildComments(data) {
 				foldToggle.type = 'button';
 				foldToggle.title = 'Toggle fold';
 				foldToggle.textContent = foldedLines.has(index) ? '>' : 'v';
+				foldToggle.addEventListener('mousedown', (event) => {
+					event.preventDefault();
+					event.stopPropagation();
+				});
 				foldToggle.addEventListener('click', (event) => {
 					event.preventDefault();
 					event.stopPropagation();
