@@ -8,36 +8,6 @@ const randomize = (n, r = '') => {
 
 console.log(`hostName: ${hostName}`);
 
-function handleMutations(mutations) {
-	mutations.forEach(function(mutation) {
-		if (mutation.target.id == 'overlay')
-		{
-			if (window.location.hostname === 'www.nzbserver.com') {
-				var elements = document.getElementsByClassName('nzbDownloadButton');
-				var elementsArray = Array.from(elements);
-				elementsArray.forEach(function(element) {
-					if (!element.hasAttribute('touched'))
-					{
-						if (!element.hasAttribute('GTFO'))
-						{
-							element.setAttribute('GTFO', true);
-							var href = element.getAttribute('href');
-							element.setAttribute('href', href.replace('nzbserver', 'clubnzb'));
-						}
-					}
-				});
-			}
-		}
-	});
-  }
-  
-// Create a MutationObserver
-var observer = new MutationObserver(handleMutations);
-
-// Configure the observer to watch for changes in the entire document
-var observerConfig = { childList: true, subtree: true };
-observer.observe(document, observerConfig);
-
 // set to a fixed string for now because of CSS styling
 var randomString = 'GTFO-BODY';//randomize(Math.floor(Math.random() * (8 - 2 + 1) + 2));
 var originalBackgroundColor, originalBackgroundImage;

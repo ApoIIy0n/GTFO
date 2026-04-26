@@ -38,10 +38,6 @@ Attempts to make hidden page content visible again by removing common hiding cla
 
 Restores normal right-click behavior on pages that try to block the context menu.
 
-### Site-specific helper
-
-GTFO currently includes a small site-specific mutation observer for `www.nzbserver.com` that rewrites matching `nzbDownloadButton` links from `nzbserver` to `clubnzb`.
-
 ## Screenshots
 
 Add screenshots here after uploading them to the repository, for example:
