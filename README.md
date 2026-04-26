@@ -38,15 +38,6 @@ Attempts to make hidden page content visible again by removing common hiding cla
 
 Restores normal right-click behavior on pages that try to block the context menu.
 
-## Screenshots
-
-Add screenshots here after uploading them to the repository, for example:
-
-```md
-![GTFO popup](docs/screenshots/popup.png)
-![GTFO grabber report](docs/screenshots/grabber-report.png)
-```
-
 ## Installation
 
 ### Temporary installation for development
@@ -62,7 +53,7 @@ Temporary add-ons are removed when Firefox restarts. Reload the extension from t
 
 ### Permanent installation
 
-This project is not packaged in this repository yet. To install it permanently, package/sign it through Mozilla’s add-on workflow or use a Firefox build/profile that allows unsigned extensions.
+Visit https://addons.mozilla.org/en-US/firefox/addon/gtfo/
 
 ## Usage
 
@@ -137,7 +128,6 @@ Useful files to edit:
 - Some external resources may fail to load due to CORS, CSP, authentication, mixed-content rules, or browser security restrictions.
 - Image extraction depends on available `img`, `currentSrc`, `src`, and inline `background-image` values.
 - The project currently targets Firefox and has not been fully prepared for Chromium-based browsers.
-- Manifest V2 may require migration work if targeting future browser stores or Chromium-based browsers.
 
 ## Roadmap ideas
 
