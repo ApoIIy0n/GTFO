@@ -2,14 +2,36 @@ function getActiveTab() {
 	return browser.tabs.query({ active: true, currentWindow: true });
 }
 
-function sendTabMessage(subject, value) {
-	getActiveTab().then((tabs) => {
-		browser.tabs.insertCSS(tabs[0].id, { file: '../css/page.css', allFrames: true });
-		browser.tabs.sendMessage(tabs[0].id, { type: subject, params: value }).then(response => {
-			if (response)
-				window.close();
-		});
-	});
+async function openGrabberReport(data) {
+	await browser.storage.local.set({ gtfo_grabber_data: data });
+	return browser.tabs.create({ url: browser.runtime.getURL('html/grabber.html') });
+}
+
+async function sendTabMessage(subject, value) {
+	try {
+		var tabs = await getActiveTab();
+		var tab = tabs[0];
+
+		if (subject != 'gtfo_grabber')
+			await browser.tabs.insertCSS(tab.id, { file: 'css/page.css', allFrames: false });
+
+		try {
+			await browser.tabs.sendMessage(tab.id, { type: 'gtfo_ping' });
+		}
+		catch (error) {
+			await browser.tabs.executeScript(tab.id, { file: 'js/content.js', allFrames: false });
+		}
+
+		var response = await browser.tabs.sendMessage(tab.id, { type: subject, params: value });
+		if (subject == 'gtfo_grabber' && response && response.data)
+			await openGrabberReport(response.data);
+
+		window.close();
+	}
+	catch (error) {
+		console.log(`Error: ${error}`);
+		alert(`GTFO failed on this page: ${error.message || error}`);
+	}
 }
 
 function getCurrentWindowTabs() {

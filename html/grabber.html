@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>GTFO</title>
+	<style>
+		body {
+			margin: 0;
+			background-color: #313131;
+			color: white;
+			font-family: Consolas, monospace;
+			font-size: 12px;
+		}
+
+		#gtfo_embedded_data {
+			display: none;
+		}
+
+		#gtfo-grabber-topbar {
+			display: flex;
+			height: 30px;
+			background-color: #1a1a1a;
+		}
+
+		.gtfo-tab-button,
+		.gtfo-tool-button {
+			cursor: pointer;
+			background: transparent;
+			border: 1px solid currentColor;
+			color: white;
+			font: 12px Consolas, monospace;
+			padding: 3px 18px;
+			margin-right: 1px;
+		}
+
+		.gtfo-tab-button:hover,
+		.gtfo-tool-button:hover,
+		.gtfo-tab-button-active {
+			color: red;
+			border-color: red;
+		}
+
+		#gtfo-report-meta {
+			padding: 8px 10px;
+			background: #262626;
+			border-bottom: 1px solid #1a1a1a;
+		}
+
+		a {
+			color: white;
+			text-decoration: none;
+			overflow-wrap: anywhere;
+		}
+
+		a:hover {
+			color: red;
+		}
+
+		.tabcontent {
+			display: none;
+		}
+
+		.tabcontent-active {
+			display: block;
+		}
+
+		#Page iframe {
+			width: 100%;
+			height: calc(100vh - 68px);
+			border: 0;
+			background: white;
+		}
+
+		#Urls {
+			height: calc(100vh - 68px);
+			overflow: auto;
+		}
+
+		#gtfo-urls-toolbar {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			height: 25px;
+			padding: 0 6px;
+			position: sticky;
+			top: 0;
+			background: #313131;
+		}
+
+		.gtfo-url-row {
+			display: flex;
+			align-items: center;
+			min-height: 18px;
+		}
+
+		.gtfo-url-row:nth-child(odd) {
+			background: #313131;
+		}
+
+		.gtfo-url-row:nth-child(even) {
+			background: #414141;
+		}
+
+		.gtfo-url-row input {
+			margin: 0 6px;
+			width: 15px;
+			height: 15px;
+			accent-color: #1a1a1a;
+		}
+
+		#Images {
+			height: calc(100vh - 68px);
+			overflow: hidden;
+		}
+
+		#Comments {
+			height: calc(100vh - 68px);
+			overflow: hidden;
+		}
+
+		#gtfo-comments-layout {
+			display: grid;
+			grid-template-columns: minmax(300px, 50%) minmax(300px, 50%);
+			height: 100%;
+		}
+
+		#gtfo-comments-nav {
+			overflow: auto;
+			border-right: 1px solid #1a1a1a;
+			background: #313131;
+			padding: 10px;
+		}
+
+		#gtfo-source-panel {
+			overflow: auto;
+			background: #1f1f1f;
+		}
+
+		#gtfo-source-title {
+			position: sticky;
+			top: 0;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
+			background: #1a1a1a;
+			border-bottom: 1px solid #414141;
+			padding: 8px 10px;
+			z-index: 1;
+		}
+
+		#gtfo-source-title-text {
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		#gtfo-source-actions {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			flex: 0 0 auto;
+		}
+
+		#gtfo-prettify-source {
+			accent-color: #1a1a1a;
+		}
+
+		.gtfo-comment-group h2 {
+			font-size: 14px;
+			margin: 0 0 8px;
+			cursor: pointer;
+			color: white;
+			overflow-wrap: normal;
+			white-space: nowrap;
+		}
+
+		.gtfo-comment-group h2:hover,
+		.gtfo-comment-group-active h2 {
+			color: red;
+		}
+
+		.gtfo-comment-active {
+			background: #7a1f1f;
+			color: white;
+			outline: 1px solid red;
+		}
+
+		.gtfo-comment-list {
+			padding-left: 18px;
+			margin: 0 0 18px;
+		}
+
+		.gtfo-comment-list li {
+			cursor: pointer;
+			margin-bottom: 4px;
+			padding: 2px 4px;
+			white-space: pre;
+		}
+
+		.gtfo-comment-empty {
+			color: #c0c0c0;
+			cursor: default !important;
+		}
+
+		#gtfo-source-code {
+			margin: 0;
+			padding: 10px;
+			min-width: max-content;
+			line-height: 1.45;
+		}
+
+		.gtfo-source-line {
+			display: grid;
+			grid-template-columns: 80px max-content;
+			min-width: max-content;
+		}
+
+		.gtfo-line-number {
+			display: flex;
+			align-items: center;
+			justify-content: flex-end;
+			gap: 4px;
+			color: #777;
+			padding-right: 12px;
+			text-align: right;
+			user-select: none;
+			border-right: 1px solid #333;
+			margin-right: 10px;
+		}
+
+		.gtfo-fold-toggle {
+			width: 12px;
+			height: 14px;
+			border: 0;
+			padding: 0;
+			background: transparent;
+			color: #aaa;
+			cursor: pointer;
+			font: 12px Consolas, monospace;
+			line-height: 1;
+		}
+
+		.gtfo-fold-toggle:hover,
+		.gtfo-source-folded .gtfo-fold-toggle {
+			color: red;
+		}
+
+		.gtfo-fold-placeholder {
+			display: inline-block;
+			width: 12px;
+		}
+
+		.gtfo-source-hidden {
+			display: none;
+		}
+
+		.gtfo-line-code {
+			white-space: pre;
+		}
+
+		.hljs-comment,
+		.hljs-quote {
+			color: #8fda7b;
+		}
+
+		.hljs-keyword,
+		.hljs-selector-tag,
+		.hljs-name,
+		.hljs-built_in {
+			color: #ff8fd4;
+		}
+
+		.hljs-string,
+		.hljs-title,
+		.hljs-section,
+		.hljs-attribute,
+		.hljs-literal {
+			color: #98d982;
+		}
+
+		.hljs-attr,
+		.hljs-variable,
+		.hljs-template-variable,
+		.hljs-selector-class,
+		.hljs-selector-id {
+			color: #ffd479;
+		}
+
+		.hljs-number,
+		.hljs-regexp,
+		.hljs-link,
+		.hljs-meta {
+			color: #7ec7ff;
+		}
+
+		.gtfo-source-highlight {
+			background: #7a1f1f;
+			color: white;
+			outline: 1px solid red;
+		}
+
+		#gtfo-images-layout {
+			display: grid;
+			grid-template-rows: auto minmax(0, 1fr) auto;
+			height: 100%;
+		}
+
+		#gtfo-images-stage {
+			position: relative;
+			min-height: 0;
+			overflow: hidden;
+		}
+
+		#gtfo-images-layout.gtfo-images-show-all #gtfo-images-pages {
+			visibility: hidden;
+		}
+
+		#gtfo-images-toolbar,
+		#gtfo-images-pages {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			padding: 4px 8px;
+			background: #262626;
+			border-bottom: 1px solid #1a1a1a;
+			overflow-x: auto;
+		}
+
+		#gtfo-images-pages {
+			border-top: 1px solid #1a1a1a;
+			border-bottom: 0;
+		}
+
+		.gtfo-image-size-button,
+		.gtfo-image-mode-button,
+		.gtfo-image-page-button {
+			cursor: pointer;
+			background: transparent;
+			border: 1px solid #777;
+			color: white;
+			font: 12px Consolas, monospace;
+			padding: 3px 10px;
+			white-space: nowrap;
+		}
+
+		.gtfo-image-size-button:hover,
+		.gtfo-image-mode-button:hover,
+		.gtfo-image-page-button:hover,
+		.gtfo-image-size-active,
+		.gtfo-image-mode-active,
+		.gtfo-image-page-active {
+			color: red;
+			border-color: red;
+		}
+
+		.gtfo-image-grid {
+			display: grid;
+			gap: 8px;
+			width: 100%;
+			height: 100%;
+			min-height: 0;
+			box-sizing: border-box;
+			padding: 8px;
+			overflow: hidden;
+		}
+
+		.gtfo-images-show-all .gtfo-image-grid {
+			overflow-y: auto;
+			align-content: start;
+		}
+
+		.gtfo-image-nav-button {
+			position: absolute;
+			top: 50%;
+			transform: translateY(-50%);
+			width: 52px;
+			height: 92px;
+			border: 1px solid #777;
+			background: rgba(26, 26, 26, 0.82);
+			color: white;
+			cursor: pointer;
+			font: 42px Consolas, monospace;
+			line-height: 1;
+			z-index: 2;
+		}
+
+		.gtfo-image-nav-button:hover {
+			color: red;
+			border-color: red;
+			background: rgba(26, 26, 26, 0.95);
+		}
+
+		.gtfo-image-nav-prev {
+			left: 12px;
+		}
+
+		.gtfo-image-nav-next {
+			right: 12px;
+		}
+
+		.gtfo-image-nav-hidden {
+			display: none;
+		}
+
+		.gtfo-image-card {
+			min-width: 0;
+			min-height: 0;
+			box-sizing: border-box;
+			overflow: hidden;
+			border: 1px solid #555;
+			background: #262626;
+			padding: 8px;
+		}
+
+		.gtfo-image-card img {
+			display: block;
+			max-width: 100%;
+			height: calc(100% - 34px);
+			max-height: calc(100% - 34px);
+			margin: 0 auto 8px;
+			object-fit: contain;
+		}
+
+		.gtfo-image-card a {
+			display: block;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.gtfo-images-empty {
+			padding: 10px;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="gtfo-grabber-topbar">
+		<button class="gtfo-tab-button" data-tab="Page">Page</button>
+		<button class="gtfo-tab-button" data-tab="Urls">Urls</button>
+		<button class="gtfo-tab-button" data-tab="Comments">Comments</button>
+		<button class="gtfo-tab-button" data-tab="Images">Images</button>
+	</div>
+	<div id="gtfo-report-meta"></div>
+	<textarea id="gtfo_embedded_data"></textarea>
+	<div id="Page" class="tabcontent"></div>
+	<div id="Urls" class="tabcontent"></div>
+	<div id="Comments" class="tabcontent"></div>
+	<div id="Images" class="tabcontent"></div>
+
+	<script src="../js/vendor/js-beautify/beautify.min.js"></script>
+	<script src="../js/vendor/js-beautify/beautify-css.min.js"></script>
+	<script src="../js/vendor/js-beautify/beautify-html.min.js"></script>
+	<script src="../js/vendor/highlight.js/highlight.min.js"></script>
+	<script src="../js/grabber.js"></script>
+</body>
+
+</html>

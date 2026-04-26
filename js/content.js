@@ -6,6 +6,38 @@ const randomize = (n, r = '') => {
 	return r;
 };
 
+console.log(`hostName: ${hostName}`);
+
+function handleMutations(mutations) {
+	mutations.forEach(function(mutation) {
+		if (mutation.target.id == 'overlay')
+		{
+			if (window.location.hostname === 'www.nzbserver.com') {
+				var elements = document.getElementsByClassName('nzbDownloadButton');
+				var elementsArray = Array.from(elements);
+				elementsArray.forEach(function(element) {
+					if (!element.hasAttribute('touched'))
+					{
+						if (!element.hasAttribute('GTFO'))
+						{
+							element.setAttribute('GTFO', true);
+							var href = element.getAttribute('href');
+							element.setAttribute('href', href.replace('nzbserver', 'clubnzb'));
+						}
+					}
+				});
+			}
+		}
+	});
+  }
+  
+// Create a MutationObserver
+var observer = new MutationObserver(handleMutations);
+
+// Configure the observer to watch for changes in the entire document
+var observerConfig = { childList: true, subtree: true };
+observer.observe(document, observerConfig);
+
 // set to a fixed string for now because of CSS styling
 var randomString = 'GTFO-BODY';//randomize(Math.floor(Math.random() * (8 - 2 + 1) + 2));
 var originalBackgroundColor, originalBackgroundImage;
@@ -72,11 +104,22 @@ function getElement(elmnt, elmntid, classlist, textcontent) {
 	if (elmntid)
 		returnElmnt.id = elmntid;
 	if (classlist)
-		returnElmnt.classList = classlist;
+		returnElmnt.className = classlist;
 	if (textcontent)
 		returnElmnt.textContent = textcontent;
 
 	return returnElmnt;
+}
+
+function gtfo_GetErrorDiv(tabName, error) {
+	var errorDiv = getPageDiv(tabName, null, null);
+	var message = getElement('div', null, null, `GTFO could not load ${tabName}: ${error.message || error}`);
+	message.style.color = 'white';
+	message.style.fontFamily = 'Consolas, consolas';
+	message.style.fontSize = '12px';
+	message.style.padding = '10px';
+	errorDiv.appendChild(message);
+	return errorDiv;
 }
 
 function getPageButton(name, enabled, className) {
@@ -185,6 +228,19 @@ function gtfo_GetCommentsFromData(data) {
 	return scriptCommentsCleaned;
 }
 
+function gtfo_GetCssCommentsFromData(data) {
+	var cssComments = Array.from(String(data || '').matchAll(/\/\*[\s\S]*?\*\//g));
+	var cssCommentsCleaned = [];
+
+	for (let commentMatch of cssComments) {
+		var comment = commentMatch[0].trim();
+		if (comment && !cssCommentsCleaned.includes(comment))
+			cssCommentsCleaned.push(comment);
+	}
+
+	return cssCommentsCleaned;
+}
+
 async function gtfo_GetCommentsDiv() {
 	// html
 	htmlComments = [];
@@ -254,7 +310,7 @@ async function gtfo_GetCommentsDiv() {
 			}
 			else {
 				if (pageScripts.comments.length > 0)
-					pageScripts.comments.push.apply(scriptCommentsCleaned);
+					pageScripts.comments.push.apply(pageScripts.comments, scriptCommentsCleaned);
 				else
 					pageScripts.comments = scriptCommentsCleaned;
 			}
@@ -400,13 +456,19 @@ function getBase64Image(img) {
 		}
 
 		var ctx = canvas.getContext("2d");
-		ctx.drawImage(img, 0, 0);
+		try {
+			ctx.drawImage(img, 0, 0);
 
-		var dataURL = canvas.toDataURL("image/png");
-		var dataString = dataURL.replace(/^data:image\/(png|jpg);base64,/, "");
-		var sizeInKiloBytes = (4 * Math.ceil((dataString.length / 3)) * 0.5624896334383812) / 1024;
-		sizeInKiloBytes = Number(Math.round(sizeInKiloBytes + 'e2') + 'e-2');
-		newImage = { data: dataURL, width: canvas.width, height: canvas.height, size: sizeInKiloBytes };
+			var dataURL = canvas.toDataURL("image/png");
+			var dataString = dataURL.replace(/^data:image\/(png|jpg);base64,/, "");
+			var sizeInKiloBytes = (4 * Math.ceil((dataString.length / 3)) * 0.5624896334383812) / 1024;
+			sizeInKiloBytes = Number(Math.round(sizeInKiloBytes + 'e2') + 'e-2');
+			newImage = { data: dataURL, width: canvas.width, height: canvas.height, size: sizeInKiloBytes };
+		}
+		catch (error) {
+			if (debugging)
+				console.log(`Can't read image data: ${img.currentSrc || img.src}`);
+		}
 	}
 	return newImage;
 }
@@ -471,6 +533,9 @@ function gtfo_Images_ToggleActive(input) {
 }
 
 function gtfo_IsPresentInFilteredImages(item, list) {
+	if (!item)
+		return true;
+
 	for (var i = 0; i < list.length; i++) {
 		if (item.data == list[i].data) {
 			return true;
@@ -481,6 +546,341 @@ function gtfo_IsPresentInFilteredImages(item, list) {
 
 function gtfo_IsURL(str) {
 	return /^(?:\w+:)?\/\/([^\s\.]+\.\S{2}|localhost[\:?\d]*)\S*$/.test(str);
+}
+
+function gtfo_GetHtmlComments() {
+	var comments = [];
+	var nodeIterator = document.createTreeWalker(document, NodeFilter.SHOW_COMMENT, null, null);
+	var comment;
+
+	while (comment = nodeIterator.nextNode()) {
+		var text = comment.textContent.trim();
+		if (text && !comments.includes(text))
+			comments.push(text);
+	}
+
+	return comments;
+}
+
+function gtfo_GetInlineScriptComments() {
+	var comments = [];
+	var scripts = document.getElementsByTagName('script');
+
+	for (let script of scripts) {
+		if (!script.src) {
+			var scriptComments = gtfo_GetCommentsFromData(script.textContent);
+			for (let scriptComment of scriptComments) {
+				if (!comments.includes(scriptComment))
+					comments.push(scriptComment);
+			}
+		}
+	}
+
+	return comments;
+}
+
+function gtfo_GetUrlList() {
+	var urls = [];
+
+	for (let link of document.links) {
+		if (link.href)
+			urls.push(decodeURI(link.href));
+	}
+
+	urls = [...new Set(urls)];
+	urls.sort();
+	return urls;
+}
+
+function gtfo_GetImageList() {
+	var images = [];
+
+	for (let image of document.images) {
+		var source = image.currentSrc || image.src;
+		if (source && !images.includes(source))
+			images.push(source);
+	}
+
+	var backgroundImages = document.querySelectorAll('[style*="background"]');
+	for (let element of backgroundImages) {
+		var backgroundImage = element.style.backgroundImage;
+		var match = backgroundImage && backgroundImage.match(/url\(["']?([^"')]+)["']?\)/);
+		if (match && match[1] && !images.includes(match[1]))
+			images.push(match[1]);
+	}
+
+	return images;
+}
+
+async function gtfo_GetTextFromUrl(url) {
+	try {
+		var response = await fetch(url);
+		if (response.ok)
+			return await response.text();
+	}
+	catch (error) {
+		if (debugging)
+			console.log(`Can't load source: ${url}`);
+	}
+
+	return null;
+}
+
+async function gtfo_GetScriptList() {
+	var scripts = [];
+
+	for (let script of document.getElementsByTagName('script')) {
+		if (script.src) {
+			var source = await gtfo_GetTextFromUrl(script.src);
+			scripts.push({
+				url: script.src,
+				source: source || `Unable to load source: ${script.src}`,
+				comments: source ? gtfo_GetCommentsFromData(source) : []
+			});
+		}
+		else {
+			scripts.push({
+				url: 'Page',
+				source: script.textContent,
+				comments: gtfo_GetCommentsFromData(script.textContent)
+			});
+		}
+	}
+
+	return scripts;
+}
+
+async function gtfo_GetCssList() {
+	var stylesheets = [];
+
+	for (let stylesheet of document.styleSheets) {
+		if (stylesheet.href) {
+			var source = await gtfo_GetTextFromUrl(stylesheet.href);
+			stylesheets.push({
+				url: stylesheet.href,
+				source: source || `Unable to load source: ${stylesheet.href}`,
+				comments: source ? gtfo_GetCssCommentsFromData(source) : []
+			});
+		}
+	}
+
+	return stylesheets;
+}
+
+function gtfo_EscapeHtml(value) {
+	return String(value)
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#039;');
+}
+
+function gtfo_GetFullDocumentSource() {
+	return Array.from(document.childNodes).map((node) => {
+		if (node.nodeType == Node.DOCUMENT_TYPE_NODE) {
+			var publicId = node.publicId ? ` PUBLIC "${node.publicId}"` : '';
+			var systemId = node.systemId ? `${node.publicId ? '' : ' SYSTEM'} "${node.systemId}"` : '';
+			return `<!DOCTYPE ${node.name}${publicId}${systemId}>`;
+		}
+
+		if (node.nodeType == Node.ELEMENT_NODE)
+			return node.outerHTML;
+
+		return new XMLSerializer().serializeToString(node);
+	}).join('\n');
+}
+
+async function gtfo_GetEmbeddedData() {
+	var htmlComments = gtfo_GetHtmlComments();
+	var scripts = await gtfo_GetScriptList();
+	var stylesheets = await gtfo_GetCssList();
+	var pageSource = gtfo_GetFullDocumentSource();
+
+	return {
+		pageUrl: window.location.href,
+		title: document.title || window.location.hostname || 'Page',
+		host: window.location.hostname || window.location.host || 'page',
+		url: window.location.href,
+		pageHtml: pageSource,
+		html: {
+			name: window.location.hostname || window.location.host || 'page',
+			source: pageSource,
+			comments: htmlComments
+		},
+		js: scripts,
+		css: stylesheets,
+		urls: gtfo_GetUrlList(),
+		comments: {
+			html: htmlComments,
+			javascript: scripts.flatMap((script) => script.comments || [])
+		},
+		images: gtfo_GetImageList()
+	};
+}
+
+function gtfo_GetReportHtml(data) {
+	var reportTitle = `GTFO: ${data.host || data.title}`;
+	var embeddedData = gtfo_EscapeHtml(JSON.stringify(data));
+
+	return `<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>${gtfo_EscapeHtml(reportTitle)}</title>
+	<style>
+		body { margin: 0; background: #313131; color: white; font-family: Consolas, monospace; }
+		#gtfo-grabber-topbar { height: 30px; background: #1a1a1a; display: flex; align-items: stretch; }
+		.gtfo-tab-button, .gtfo-tool-button { cursor: pointer; background: transparent; border: 1px solid currentColor; color: white; font: 12px Consolas, monospace; padding: 3px 18px; margin-right: 1px; }
+		.gtfo-tab-button:hover, .gtfo-tool-button:hover, .gtfo-tab-button-active { color: red; border-color: red; }
+		#gtfo-report-meta { padding: 8px 10px; font-size: 12px; background: #262626; border-bottom: 1px solid #1a1a1a; }
+		#gtfo-report-meta a { color: white; }
+		.tabcontent { display: none; }
+		.tabcontent-active { display: block; }
+		#Urls { height: calc(100vh - 68px); overflow: auto; }
+		#gtfo-urls-toolbar { height: 25px; background: #313131; display: flex; align-items: center; gap: 8px; padding: 0 6px; position: sticky; top: 0; }
+		.gtfo-url-row { display: flex; align-items: center; min-height: 18px; font-size: 12px; }
+		.gtfo-url-row:nth-child(odd) { background: #313131; }
+		.gtfo-url-row:nth-child(even) { background: #414141; }
+		.gtfo-url-row input { margin: 0 6px; width: 15px; height: 15px; accent-color: #1a1a1a; }
+		.gtfo-url-row a { color: white; text-decoration: none; overflow-wrap: anywhere; }
+		.gtfo-url-row a:hover { color: red; }
+		#Page iframe { width: 100%; height: calc(100vh - 68px); border: 0; background: white; }
+		#Comments, #Images { padding: 10px; }
+		.gtfo-comment-group { margin-bottom: 18px; }
+		.gtfo-comment-group h2 { font-size: 14px; margin: 0 0 8px; }
+		.gtfo-comment-group li { margin-bottom: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+		.gtfo-image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+		.gtfo-image-card { border: 1px solid #555; background: #262626; padding: 8px; }
+		.gtfo-image-card img { display: block; max-width: 100%; max-height: 180px; margin: 0 auto 8px; object-fit: contain; }
+		.gtfo-image-card a { color: white; font-size: 12px; overflow-wrap: anywhere; }
+		#gtfo_embedded_data { display: none; }
+	</style>
+</head>
+<body>
+	<textarea id="gtfo_embedded_data">${embeddedData}</textarea>
+	<div id="gtfo-grabber-topbar">
+		<button class="gtfo-tab-button" data-tab="Page">Page</button>
+		<button class="gtfo-tab-button" data-tab="Urls">Urls</button>
+		<button class="gtfo-tab-button" data-tab="Comments">Comments</button>
+		<button class="gtfo-tab-button" data-tab="Images">Images</button>
+	</div>
+	<div id="gtfo-report-meta"></div>
+	<div id="Page" class="tabcontent"></div>
+	<div id="Urls" class="tabcontent"></div>
+	<div id="Comments" class="tabcontent"></div>
+	<div id="Images" class="tabcontent"></div>
+	<script>
+		const data = JSON.parse(document.getElementById('gtfo_embedded_data').value);
+		document.title = 'GTFO: ' + (data.host || data.title || 'Page');
+
+		function escapeHtml(value) {
+			return String(value)
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;')
+				.replace(/'/g, '&#039;');
+		}
+
+		function switchTab(tabName) {
+			document.querySelectorAll('.tabcontent').forEach((tab) => {
+				tab.classList.toggle('tabcontent-active', tab.id === tabName);
+			});
+			document.querySelectorAll('.gtfo-tab-button').forEach((button) => {
+				button.classList.toggle('gtfo-tab-button-active', button.dataset.tab === tabName);
+			});
+		}
+
+		function selectedUrls() {
+			return Array.from(document.querySelectorAll('.gtfo-url-input:checked')).map((input) => input.value);
+		}
+
+		function buildPage() {
+			document.getElementById('gtfo-report-meta').innerHTML = '<strong>' + escapeHtml(data.title || data.host) + '</strong> - <a href="' + escapeHtml(data.url) + '">' + escapeHtml(data.url) + '</a>';
+
+			const page = document.getElementById('Page');
+			const iframe = document.createElement('iframe');
+			iframe.setAttribute('sandbox', '');
+			iframe.srcdoc = data.pageHtml;
+			page.appendChild(iframe);
+		}
+
+		function buildUrls() {
+			const urls = document.getElementById('Urls');
+			const toolbar = document.createElement('div');
+			toolbar.id = 'gtfo-urls-toolbar';
+			toolbar.innerHTML = '<button class="gtfo-tool-button" id="gtfo-copy-urls">Copy</button><button class="gtfo-tool-button" id="gtfo-save-urls">Save</button><label><input type="checkbox" id="gtfo-select-all"> Select all</label>';
+			urls.appendChild(toolbar);
+
+			data.urls.forEach((url, index) => {
+				const row = document.createElement('div');
+				row.className = 'gtfo-url-row';
+				row.innerHTML = '<input class="gtfo-url-input" type="checkbox" value="' + escapeHtml(url) + '"><a href="' + escapeHtml(url) + '">' + String(index + 1).padStart(String(data.urls.length).length, '0') + ': ' + escapeHtml(url) + '</a>';
+				urls.appendChild(row);
+			});
+
+			document.getElementById('gtfo-select-all').addEventListener('change', (event) => {
+				document.querySelectorAll('.gtfo-url-input').forEach((input) => input.checked = event.target.checked);
+			});
+			document.getElementById('gtfo-copy-urls').addEventListener('click', () => navigator.clipboard.writeText(selectedUrls().join('\\r\\n')));
+			document.getElementById('gtfo-save-urls').addEventListener('click', () => {
+				const link = document.createElement('a');
+				link.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(selectedUrls().join('\\r\\n'));
+				link.download = 'urls_' + (data.host || 'page').replace(/[^a-z0-9_-]/gi, '_') + '_' + Date.now() + '.txt';
+				link.click();
+			});
+		}
+
+		function buildComments() {
+			const comments = document.getElementById('Comments');
+			const groups = [
+				{ title: 'HTML', items: data.comments.html },
+				{ title: 'JavaScript', items: data.comments.javascript }
+			];
+
+			groups.forEach((group) => {
+				const section = document.createElement('section');
+				section.className = 'gtfo-comment-group';
+				section.innerHTML = '<h2>' + escapeHtml(group.title) + '</h2>';
+				const list = document.createElement('ul');
+				group.items.forEach((item) => {
+					const li = document.createElement('li');
+					li.textContent = item;
+					list.appendChild(li);
+				});
+				section.appendChild(list);
+				comments.appendChild(section);
+			});
+		}
+
+		function buildImages() {
+			const images = document.getElementById('Images');
+			const grid = document.createElement('div');
+			grid.className = 'gtfo-image-grid';
+
+			data.images.forEach((image) => {
+				const card = document.createElement('div');
+				card.className = 'gtfo-image-card';
+				card.innerHTML = '<img src="' + escapeHtml(image) + '" alt=""><a href="' + escapeHtml(image) + '">' + escapeHtml(image) + '</a>';
+				grid.appendChild(card);
+			});
+
+			images.appendChild(grid);
+		}
+
+		document.querySelectorAll('.gtfo-tab-button').forEach((button) => {
+			button.addEventListener('click', () => switchTab(button.dataset.tab));
+		});
+
+		buildPage();
+		buildUrls();
+		buildComments();
+		buildImages();
+		switchTab('Urls');
+	</script>
+</body>
+</html>`;
 }
 
 async function gtfo_GetImagesDiv() {
@@ -639,13 +1039,28 @@ async function gtfo_Grabber() {
 		newBody.appendChild(topBarDiv);
 
 		// add urls div
-		newBody.appendChild(gtfo_GetUrlsDiv());
+		try {
+			newBody.appendChild(gtfo_GetUrlsDiv());
+		}
+		catch (error) {
+			newBody.appendChild(gtfo_GetErrorDiv('Urls', error));
+		}
 
 		// add comments div
-		newBody.appendChild(await gtfo_GetCommentsDiv());
+		try {
+			newBody.appendChild(await gtfo_GetCommentsDiv());
+		}
+		catch (error) {
+			newBody.appendChild(gtfo_GetErrorDiv('Comments', error));
+		}
 
 		// add images div
-		newBody.appendChild(await gtfo_GetImagesDiv());
+		try {
+			newBody.appendChild(await gtfo_GetImagesDiv());
+		}
+		catch (error) {
+			newBody.appendChild(gtfo_GetErrorDiv('Images', error));
+		}
 
 		// add old body
 		newBody.appendChild(getPageDiv('Page', null, document.body.innerHTML));
@@ -692,12 +1107,17 @@ function gtfo_RightClick() {
 
 browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 	switch (request.type) {
+		case 'gtfo_ping':
+			break;
 		case 'gtfo_unhide':
 			gtfo_Unhide();
 			break;
 		case 'gtfo_grabber':
-			await gtfo_Grabber();
-			break;
+			var embeddedData = await gtfo_GetEmbeddedData();
+			return Promise.resolve({
+				data: embeddedData,
+				html: gtfo_GetReportHtml(embeddedData)
+			});
 		case 'gtfo_rightclick':
 			gtfo_RightClick();
 			break;
