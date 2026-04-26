@@ -1,3 +1,7 @@
+var gtfoCurrentPageUrl = '';
+var gtfoSyntaxHighlightCache = new Map();
+var gtfoSyntaxHighlightCacheLimit = 20000;
+
 function gtfoEscapeHtml(value) {
 	return String(value || '')
 		.replace(/&/g, '&amp;')
@@ -156,17 +160,33 @@ function gtfoPlural(value, singular, plural) {
 }
 
 function gtfoHighlightSyntax(line, sourceType) {
+	line = String(line || '');
+	var cacheable = line.length <= 2000;
+	var cacheKey = cacheable ? `${sourceType}\n${line}` : '';
+	if (cacheable && gtfoSyntaxHighlightCache.has(cacheKey))
+		return gtfoSyntaxHighlightCache.get(cacheKey);
+
 	var language = sourceType == 'html' ? 'xml' : sourceType;
+	var highlighted = '';
 
 	try {
 		if (typeof hljs == 'object' && hljs.getLanguage(language))
-			return hljs.highlight(line, { language: language, ignoreIllegals: true }).value;
+			highlighted = hljs.highlight(line, { language: language, ignoreIllegals: true }).value;
 	}
 	catch (error) {
 		console.warn('GTFO highlighter failed, showing escaped source.', error);
 	}
 
-	return gtfoEscapeHtml(line);
+	if (!highlighted)
+		highlighted = gtfoEscapeHtml(line);
+
+	if (cacheable) {
+		if (gtfoSyntaxHighlightCache.size >= gtfoSyntaxHighlightCacheLimit)
+			gtfoSyntaxHighlightCache.clear();
+		gtfoSyntaxHighlightCache.set(cacheKey, highlighted);
+	}
+
+	return highlighted;
 }
 
 
@@ -326,6 +346,8 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 	var ranges = [];
 	var state = 'code';
 	var stringReturnState = 'code';
+	var regexReturnState = 'code';
+	var regexInCharacterClass = false;
 	var templateExpressionDepth = 0;
 	var blockStartLine = 0;
 	var blockText = '';
@@ -342,6 +364,36 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 		for (let scanIndex = index - 1; scanIndex >= 0 && line[scanIndex] == '\\'; scanIndex--)
 			slashCount++;
 		return slashCount % 2 == 1;
+	}
+
+	function canStartRegex(line, index) {
+		var scanIndex = index - 1;
+		while (scanIndex >= 0 && /\s/.test(line[scanIndex]))
+			scanIndex--;
+
+		if (scanIndex < 0)
+			return true;
+
+		var previous = line[scanIndex];
+		if ('([{=,:;!~?&|^+-*%<>}'.includes(previous))
+			return true;
+
+		if (/[a-zA-Z0-9_$]/.test(previous)) {
+			var endIndex = scanIndex + 1;
+			while (scanIndex >= 0 && /[a-zA-Z0-9_$]/.test(line[scanIndex]))
+				scanIndex--;
+
+			var previousWord = line.slice(scanIndex + 1, endIndex);
+			return /^(?:return|throw|case|delete|void|typeof|new|yield|await|else|do|in|of)$/.test(previousWord);
+		}
+
+		return false;
+	}
+
+	function enterRegex(returnState) {
+		regexReturnState = returnState;
+		regexInCharacterClass = false;
+		state = 'regex';
 	}
 
 	function returnToCodeState() {
@@ -365,7 +417,7 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 				}
 				else if (sourceType == 'javascript' && character == '`')
 					state = 'template';
-				else if (sourceType == 'javascript' && character == '/' && nextCharacter == '/') {
+				else if (sourceType == 'javascript' && character == '/' && nextCharacter == '/' && !isEscaped(line, index)) {
 					ranges.push({
 						start: lineIndex,
 						end: lineIndex,
@@ -373,12 +425,14 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 					});
 					break;
 				}
-				else if (character == '/' && nextCharacter == '*') {
+				else if (character == '/' && nextCharacter == '*' && !isEscaped(line, index)) {
 					blockStartLine = lineIndex;
 					blockText = '/*';
 					state = 'block-comment';
 					index++;
 				}
+				else if (sourceType == 'javascript' && character == '/' && canStartRegex(line, index))
+					enterRegex('code');
 			}
 			else if (state == '"' || state == "'") {
 				if (character == state && !isEscaped(line, index))
@@ -407,7 +461,7 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 					if (templateExpressionDepth <= 0)
 						state = 'template';
 				}
-				else if (character == '/' && nextCharacter == '/') {
+				else if (character == '/' && nextCharacter == '/' && !isEscaped(line, index)) {
 					ranges.push({
 						start: lineIndex,
 						end: lineIndex,
@@ -415,12 +469,22 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 					});
 					break;
 				}
-				else if (character == '/' && nextCharacter == '*') {
+				else if (character == '/' && nextCharacter == '*' && !isEscaped(line, index)) {
 					blockStartLine = lineIndex;
 					blockText = '/*';
 					state = 'block-comment';
 					index++;
 				}
+				else if (character == '/' && canStartRegex(line, index))
+					enterRegex('template-expression');
+			}
+			else if (state == 'regex') {
+				if (character == '[' && !isEscaped(line, index))
+					regexInCharacterClass = true;
+				else if (character == ']' && !isEscaped(line, index))
+					regexInCharacterClass = false;
+				else if (character == '/' && !regexInCharacterClass && !isEscaped(line, index))
+					state = regexReturnState;
 			}
 			else if (state == 'block-comment') {
 				blockText += character;
@@ -437,6 +501,9 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 				}
 			}
 		}
+
+		if (state == 'regex')
+			state = regexReturnState;
 	}
 
 	return cacheRanges();
@@ -814,7 +881,7 @@ function gtfoGetImageUrl(image) {
 
 function gtfoGetImageExtensionFromUrl(url) {
 	try {
-		var pathname = new URL(url, gtfoGetPageUrl(JSON.parse(document.getElementById('gtfo_embedded_data').value || '{}'))).pathname;
+		var pathname = new URL(url, gtfoCurrentPageUrl).pathname;
 		var name = pathname.split('/').pop() || '';
 		var match = name.match(/\.([a-z0-9]{2,5})$/i);
 		return match ? match[1].toLowerCase() : '';
@@ -839,7 +906,7 @@ function gtfoGetImageType(image) {
 
 function gtfoGetImageFileNameFromUrl(url) {
 	try {
-		var pathname = new URL(url, gtfoGetPageUrl(JSON.parse(document.getElementById('gtfo_embedded_data').value || '{}'))).pathname;
+		var pathname = new URL(url, gtfoCurrentPageUrl).pathname;
 		return decodeURIComponent(pathname.split('/').pop() || '');
 	}
 	catch (error) {
@@ -1184,8 +1251,9 @@ function gtfoCreateImagesLayout() {
 function gtfoBuildPage(data) {
 	var page = document.getElementById('Page');
 	var iframe = document.createElement('iframe');
+	var pageHtml = data.pageHtml || (data.html && data.html.source) || '';
 	iframe.setAttribute('sandbox', '');
-	iframe.srcdoc = data.pageHtml || `<a href="${gtfoEscapeHtml(gtfoGetPageUrl(data))}">${gtfoEscapeHtml(gtfoGetPageUrl(data))}</a>`;
+	iframe.srcdoc = pageHtml || `<a href="${gtfoEscapeHtml(gtfoGetPageUrl(data))}">${gtfoEscapeHtml(gtfoGetPageUrl(data))}</a>`;
 	page.appendChild(iframe);
 }
 
@@ -1479,6 +1547,7 @@ function gtfoBuildComments(data) {
 		gtfoClearElement(sourceMarkers);
 		var lineRows = [];
 		activeSourceLineRows = lineRows;
+		var hiddenLineCounts = new Uint32Array(lines.length);
 
 		function updateSourceMarkers() {
 			gtfoClearElement(sourceMarkers);
@@ -1560,25 +1629,47 @@ function gtfoBuildComments(data) {
 			scheduleSourceMarkerUpdate();
 		}
 
-		function applyFoldVisibility() {
-			lineRows.forEach((row, lineIndex) => {
-				var hidden = false;
+		function updateFoldRow(lineIndex) {
+			var row = lineRows[lineIndex];
+			if (!row)
+				return;
 
-				for (let [foldStart, foldEnd] of foldRanges) {
-					if (foldedLines.has(foldStart) && lineIndex > foldStart && lineIndex <= foldEnd) {
-						hidden = true;
-						break;
-					}
-				}
+			row.classList.toggle('gtfo-source-hidden', hiddenLineCounts[lineIndex] > 0);
+			row.classList.toggle('gtfo-source-folded', foldedLines.has(lineIndex));
+			row.classList.toggle('gtfo-source-line-selected', selectedSourceLines.has(lineIndex));
 
-				row.classList.toggle('gtfo-source-hidden', hidden);
-				row.classList.toggle('gtfo-source-folded', foldedLines.has(lineIndex));
-				row.classList.toggle('gtfo-source-line-selected', selectedSourceLines.has(lineIndex));
+			var toggle = row.querySelector('.gtfo-fold-toggle');
+			if (toggle)
+				toggle.textContent = foldedLines.has(lineIndex) ? '>' : 'v';
+		}
 
-				var toggle = row.querySelector('.gtfo-fold-toggle');
-				if (toggle)
-					toggle.textContent = foldedLines.has(lineIndex) ? '>' : 'v';
-			});
+		function rebuildFoldVisibility() {
+			hiddenLineCounts.fill(0);
+
+			for (let [foldStart, foldEnd] of foldRanges) {
+				if (!foldedLines.has(foldStart))
+					continue;
+
+				for (let lineIndex = foldStart + 1; lineIndex <= foldEnd; lineIndex++)
+					hiddenLineCounts[lineIndex]++;
+			}
+
+			lineRows.forEach((row, lineIndex) => updateFoldRow(lineIndex));
+		}
+
+		function updateFoldVisibility(foldStart, isFolded) {
+			var foldEnd = foldRanges.get(foldStart);
+			if (!Number.isFinite(foldEnd))
+				return;
+
+			var delta = isFolded ? 1 : -1;
+			for (let lineIndex = foldStart + 1; lineIndex <= foldEnd; lineIndex++) {
+				hiddenLineCounts[lineIndex] = Math.max(0, hiddenLineCounts[lineIndex] + delta);
+				updateFoldRow(lineIndex);
+			}
+
+			updateFoldRow(foldStart);
+			scheduleSourceMarkerUpdate();
 		}
 
 		var lineFragment = document.createDocumentFragment();
@@ -1625,13 +1716,18 @@ function gtfoBuildComments(data) {
 					event.preventDefault();
 					event.stopPropagation();
 
-					if (foldedLines.has(index))
+					var isFolded;
+					if (foldedLines.has(index)) {
 						foldedLines.delete(index);
-					else
+						isFolded = false;
+					}
+					else {
 						foldedLines.add(index);
+						isFolded = true;
+					}
 
 					foldedLinesBySource.set(foldStateKey, foldedLines);
-					applyFoldVisibility();
+					updateFoldVisibility(index, isFolded);
 				});
 				lineNumber.appendChild(foldToggle);
 			}
@@ -1656,7 +1752,7 @@ function gtfoBuildComments(data) {
 		});
 		sourceCode.appendChild(lineFragment);
 
-		applyFoldVisibility();
+		rebuildFoldVisibility();
 		foldedLinesBySource.set(foldStateKey, foldedLines);
 		selectedSourceLinesBySource.set(sourceStateKey, selectedSourceLines);
 
@@ -1726,6 +1822,8 @@ function gtfoBuildComments(data) {
 		options = options || {};
 		var node = document.createElement('li');
 		node.className = 'gtfo-source-tree-node';
+		if (options.collapsed)
+			node.classList.add('gtfo-tree-collapsed');
 		var button = document.createElement('button');
 		button.type = 'button';
 		button.className = 'gtfo-tree-label';
@@ -1766,25 +1864,26 @@ function gtfoBuildComments(data) {
 	}
 
 	function createSourceNode(group, label) {
-		var commentList = document.createElement('ul');
-		commentList.className = 'gtfo-comment-list';
-		var sourceNode = createTreeNode(label, {
-			children: commentList
-		});
-		sourceNode.classList.add('gtfo-source-file-node');
-		sourceNode.gtfoGroup = group;
-		sourceNode.querySelector(':scope > .gtfo-tree-label').addEventListener('click', (event) => {
-			if (event.target == sourceNode.querySelector(':scope > .gtfo-tree-label'))
-				setActiveGroup(sourceNode, group);
+		var hasComments = group.comments.length > 0;
+		var commentList = hasComments ? document.createElement('ul') : null;
+		if (commentList)
+			commentList.className = 'gtfo-comment-list';
+
+		var sourceNode = createTreeNode(label, hasComments ? {
+			children: commentList,
+			collapsed: true
+		} : {
+			onClick: () => setActiveGroup(sourceNode, group)
 		});
 
-		if (group.comments.length == 0) {
-			var empty = document.createElement('li');
-			empty.className = 'gtfo-comment-empty';
-			empty.textContent = 'No comments found';
-			commentList.appendChild(empty);
-		}
-		else {
+		sourceNode.classList.add('gtfo-source-file-node');
+		sourceNode.gtfoGroup = group;
+		if (hasComments) {
+			sourceNode.querySelector(':scope > .gtfo-tree-label').addEventListener('click', (event) => {
+				if (event.target == sourceNode.querySelector(':scope > .gtfo-tree-label'))
+					setActiveGroup(sourceNode, group);
+			});
+
 			for (let comment of group.comments)
 				commentList.appendChild(createCommentNode(comment, sourceNode, group));
 		}
@@ -1832,9 +1931,7 @@ function gtfoBuildComments(data) {
 
 	appendLanguageRoot(tree, 'HTML', htmlGroups, (languageList, groupList) => {
 		for (let group of groupList) {
-			var commentFolder = document.createElement('ul');
-			commentFolder.appendChild(createSourceNode(group, `${group.displayName || 'Page'} [${gtfoPlural(group.comments.length, 'comment', 'comments')}]`));
-			languageList.appendChild(createTreeNode(`Comments [${gtfoPlural(group.comments.length, 'comment', 'comments')}]`, { children: commentFolder }));
+			languageList.appendChild(createSourceNode(group, `${group.displayName || 'Page'} [${gtfoPlural(group.comments.length, 'comment', 'comments')}]`));
 		}
 	});
 	appendLanguageRoot(tree, 'JavaScript', jsGroups, (languageList, groupList) => {
@@ -1851,7 +1948,10 @@ function gtfoBuildComments(data) {
 	nav.appendChild(tree);
 
 	if (groups.length > 0) {
-		var firstSource = nav.querySelector('.gtfo-source-file-node');
+		var pageSource = Array.from(nav.querySelectorAll('.gtfo-source-file-node')).find((node) => {
+			return node.gtfoGroup && node.gtfoGroup.sourceType == 'html' && node.gtfoGroup.sourceScope == 'page';
+		});
+		var firstSource = pageSource || nav.querySelector('.gtfo-source-file-node');
 		if (firstSource)
 			setActiveGroup(firstSource, firstSource.gtfoGroup);
 	}
@@ -2218,17 +2318,33 @@ function gtfoRender(data) {
 	var pageUrl = gtfoGetPageUrl(data);
 
 	document.title = `GTFO: ${host}`;
-	document.getElementById('gtfo_embedded_data').value = JSON.stringify(data);
+	gtfoCurrentPageUrl = pageUrl;
 	gtfoAppendReportMeta(document.getElementById('gtfo-report-meta'), host, pageUrl);
 
+	var builtTabs = new Set();
+	var tabBuilders = {
+		Page: () => gtfoBuildPage(data),
+		Urls: () => gtfoBuildUrls(data),
+		Sources: () => gtfoBuildComments(data),
+		Images: () => gtfoBuildImages(data)
+	};
+
+	function ensureTabBuilt(tabName) {
+		if (builtTabs.has(tabName) || !tabBuilders[tabName])
+			return;
+
+		tabBuilders[tabName]();
+		builtTabs.add(tabName);
+	}
+
 	document.querySelectorAll('.gtfo-tab-button').forEach((button) => {
-		button.addEventListener('click', () => gtfoSwitchTab(button.dataset.tab));
+		button.addEventListener('click', () => {
+			ensureTabBuilt(button.dataset.tab);
+			gtfoSwitchTab(button.dataset.tab);
+		});
 	});
 
-	gtfoBuildPage(data);
-	gtfoBuildUrls(data);
-	gtfoBuildComments(data);
-	gtfoBuildImages(data);
+	ensureTabBuilt('Urls');
 	gtfoSwitchTab('Urls');
 }
 

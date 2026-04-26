@@ -180,6 +180,8 @@ function gtfo_GetCommentsFromData(data) {
 	var scriptCommentSet = new Set();
 	var state = 'code';
 	var stringReturnState = 'code';
+	var regexReturnState = 'code';
+	var regexInCharacterClass = false;
 	var templateExpressionDepth = 0;
 	var blockCommentStart = 0;
 	var lineCommentStart = 0;
@@ -201,6 +203,40 @@ function gtfo_GetCommentsFromData(data) {
 		return slashCount % 2 == 1;
 	}
 
+	function canStartRegex(index) {
+		var scanIndex = index - 1;
+		while (scanIndex >= 0 && /\s/.test(source[scanIndex]))
+			scanIndex--;
+
+		if (scanIndex < 0)
+			return true;
+
+		var previous = source[scanIndex];
+		if ('([{=,:;!~?&|^+-*%<>}'.includes(previous))
+			return true;
+
+		if (/[a-zA-Z0-9_$]/.test(previous)) {
+			var endIndex = scanIndex + 1;
+			while (scanIndex >= 0 && /[a-zA-Z0-9_$]/.test(source[scanIndex]))
+				scanIndex--;
+
+			var previousWord = source.slice(scanIndex + 1, endIndex);
+			return /^(?:return|throw|case|delete|void|typeof|new|yield|await|else|do|in|of)$/.test(previousWord);
+		}
+
+		return false;
+	}
+
+	function enterRegex(returnState) {
+		regexReturnState = returnState;
+		regexInCharacterClass = false;
+		state = 'regex';
+	}
+
+	function returnToCodeState() {
+		return templateExpressionDepth > 0 ? 'template-expression' : 'code';
+	}
+
 	for (let index = 0; index < source.length; index++) {
 		var character = source[index];
 		var nextCharacter = source[index + 1];
@@ -212,16 +248,18 @@ function gtfo_GetCommentsFromData(data) {
 			}
 			else if (character == '`')
 				state = 'template';
-			else if (character == '/' && nextCharacter == '/') {
+			else if (character == '/' && nextCharacter == '/' && !isEscaped(index)) {
 				lineCommentStart = index;
 				state = 'line-comment';
 				index++;
 			}
-			else if (character == '/' && nextCharacter == '*') {
+			else if (character == '/' && nextCharacter == '*' && !isEscaped(index)) {
 				blockCommentStart = index;
 				state = 'block-comment';
 				index++;
 			}
+			else if (character == '/' && canStartRegex(index))
+				enterRegex('code');
 		}
 		else if (state == '"' || state == "'") {
 			if (character == state && !isEscaped(index))
@@ -250,27 +288,39 @@ function gtfo_GetCommentsFromData(data) {
 				if (templateExpressionDepth <= 0)
 					state = 'template';
 			}
-			else if (character == '/' && nextCharacter == '/') {
+			else if (character == '/' && nextCharacter == '/' && !isEscaped(index)) {
 				lineCommentStart = index;
 				state = 'line-comment';
 				index++;
 			}
-			else if (character == '/' && nextCharacter == '*') {
+			else if (character == '/' && nextCharacter == '*' && !isEscaped(index)) {
 				blockCommentStart = index;
 				state = 'block-comment';
 				index++;
 			}
+			else if (character == '/' && canStartRegex(index))
+				enterRegex('template-expression');
+		}
+		else if (state == 'regex') {
+			if (character == '[' && !isEscaped(index))
+				regexInCharacterClass = true;
+			else if (character == ']' && !isEscaped(index))
+				regexInCharacterClass = false;
+			else if (character == '/' && !regexInCharacterClass && !isEscaped(index))
+				state = regexReturnState;
+			else if ((character == '\n' || character == '\r') && !isEscaped(index))
+				state = regexReturnState;
 		}
 		else if (state == 'line-comment') {
 			if (character == '\n' || character == '\r') {
 				appendComment(source.slice(lineCommentStart, index));
-				state = templateExpressionDepth > 0 ? 'template-expression' : 'code';
+				state = returnToCodeState();
 			}
 		}
 		else if (state == 'block-comment') {
 			if (character == '*' && nextCharacter == '/') {
 				appendComment(source.slice(blockCommentStart, index + 2));
-				state = templateExpressionDepth > 0 ? 'template-expression' : 'code';
+				state = returnToCodeState();
 				index++;
 			}
 		}
@@ -706,7 +756,29 @@ function gtfo_GetImageList() {
 	return images;
 }
 
-async function gtfo_GetTextFromUrl(url) {
+var gtfoTextFromUrlCache = new Map();
+
+function gtfo_GetFetchCacheUrl(url) {
+	try {
+		var fetchUrl = new URL(url, document.baseURI);
+		fetchUrl.hash = '';
+		return fetchUrl.href;
+	}
+	catch (error) {
+		return String(url || '');
+	}
+}
+
+function gtfo_IsSameOriginUrl(url) {
+	try {
+		return new URL(url, document.baseURI).origin == window.location.origin;
+	}
+	catch (error) {
+		return true;
+	}
+}
+
+async function gtfo_FetchTextFromPage(url) {
 	try {
 		var response = await fetch(url);
 		if (response.ok)
@@ -714,10 +786,14 @@ async function gtfo_GetTextFromUrl(url) {
 	}
 	catch (error) {
 		if (debugging)
-			console.log(`Can't load source: ${url}`);
+			console.log(`Can't load source from page: ${url}`);
 	}
 
-	if (browser.runtime && browser.runtime.sendMessage) {
+	return null;
+}
+
+async function gtfo_FetchTextFromBackground(url) {
+	if (typeof browser == 'object' && browser.runtime && browser.runtime.sendMessage) {
 		try {
 			var backgroundResponse = await browser.runtime.sendMessage({
 				type: 'gtfo_fetch_text',
@@ -725,7 +801,7 @@ async function gtfo_GetTextFromUrl(url) {
 			});
 
 			if (backgroundResponse && backgroundResponse.ok)
-				return backgroundResponse.text;
+				return typeof backgroundResponse.text == 'string' ? backgroundResponse.text : '';
 		}
 		catch (error) {
 			if (debugging)
@@ -734,6 +810,33 @@ async function gtfo_GetTextFromUrl(url) {
 	}
 
 	return null;
+}
+
+async function gtfo_LoadTextFromUrl(url) {
+	if (gtfo_IsSameOriginUrl(url)) {
+		var pageText = await gtfo_FetchTextFromPage(url);
+		if (pageText !== null)
+			return pageText;
+
+		return await gtfo_FetchTextFromBackground(url);
+	}
+
+	var backgroundText = await gtfo_FetchTextFromBackground(url);
+	if (backgroundText !== null)
+		return backgroundText;
+
+	return await gtfo_FetchTextFromPage(url);
+}
+
+async function gtfo_GetTextFromUrl(url) {
+	var fetchUrl = gtfo_GetFetchCacheUrl(url);
+	if (!fetchUrl)
+		return null;
+
+	if (!gtfoTextFromUrlCache.has(fetchUrl))
+		gtfoTextFromUrlCache.set(fetchUrl, gtfo_LoadTextFromUrl(fetchUrl));
+
+	return await gtfoTextFromUrlCache.get(fetchUrl);
 }
 
 async function gtfo_GetScriptList() {
@@ -811,6 +914,7 @@ function gtfo_GetFullDocumentSource() {
 }
 
 async function gtfo_GetEmbeddedData() {
+	gtfoTextFromUrlCache.clear();
 	var htmlComments = gtfo_GetHtmlComments();
 	var scriptsPromise = gtfo_GetScriptList();
 	var stylesheetsPromise = gtfo_GetCssList();
@@ -828,7 +932,6 @@ async function gtfo_GetEmbeddedData() {
 		pageHtml: pageSource,
 		html: {
 			name: window.location.hostname || window.location.host || 'page',
-			source: pageSource,
 			comments: htmlComments
 		},
 		js: scripts,

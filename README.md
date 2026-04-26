@@ -78,7 +78,6 @@ GTFO/
 ├── icons/
 │   └── GTFO.png          # Extension icon
 ├── js/
-│   ├── auto.js           # Tiny host-specific automatic page fix
 │   ├── background.js     # Background fetch helper for page resources
 │   ├── content.js        # Content script and page-data collection logic
 │   ├── grabber.js        # Local Grabber report UI

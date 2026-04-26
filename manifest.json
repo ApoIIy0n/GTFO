@@ -32,16 +32,5 @@
         "required": ["none"]
       }  
     }
-  },
-  "content_scripts": [
-    {
-      "matches": [
-        "*://www.nzbserver.com/*"
-      ],
-      "js": [
-        "js/auto.js"
-      ],
-      "run_at": "document_end"
-    }
-  ]
+  }
 }
