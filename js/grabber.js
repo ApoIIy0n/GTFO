@@ -1366,6 +1366,8 @@ function gtfoAppendImageCard(parent, imageInfo) {
 	meta.className = 'gtfo-image-meta';
 	var link = document.createElement('a');
 	link.href = imageUrl;
+	link.target = '_blank';
+	link.rel = 'noopener noreferrer';
 	link.textContent = imageInfo.name;
 
 	var dimensions = document.createElement('span');
@@ -1553,6 +1555,9 @@ function gtfoBuildComments(data) {
 	var pendingSearchScrollLineIndex = null;
 	var pendingSearchResultKey = null;
 	var sourceNodeByGroup = new WeakMap();
+	var activeCommentLineIndexes = new Set();
+	var renderedSourceGroup = null;
+	var renderedSourceStateKey = '';
 
 	gtfoClearElement(comments);
 	comments.appendChild(gtfoCreateCommentLayout());
@@ -1853,6 +1858,67 @@ function gtfoBuildComments(data) {
 		return gtfoGetFoldStateKey(group);
 	}
 
+	function updateActiveCommentHighlights(group, selectedComments, keepScroll, scrollComment) {
+		var sourcePanel = document.getElementById('gtfo-source-panel');
+		var sourceStateKey = gtfoGetSourceStateKey(group);
+		var lines = sourceLinesBySource.get(sourceStateKey);
+		var sourceType = gtfoGetSourceType(group);
+		if (renderedSourceGroup != group || renderedSourceStateKey != sourceStateKey || !sourcePanel || !lines || activeSourceLineRows.length == 0)
+			return false;
+
+		var nextCommentLineIndexes = new Set(gtfoBuildCommentLineSet(lines, selectedComments || [], sourceType));
+		for (let lineIndex of activeCommentLineIndexes) {
+			if (!nextCommentLineIndexes.has(lineIndex) && activeSourceLineRows[lineIndex])
+				activeSourceLineRows[lineIndex].classList.remove('gtfo-source-highlight');
+		}
+		for (let lineIndex of nextCommentLineIndexes) {
+			if (activeSourceLineRows[lineIndex])
+				activeSourceLineRows[lineIndex].classList.add('gtfo-source-highlight');
+		}
+
+		activeCommentLineIndexes = nextCommentLineIndexes;
+		gtfoRefreshActiveSearchHighlights(group);
+		if (scrollComment) {
+			var scrollRange = gtfoFindCommentRange(lines, scrollComment, sourceType);
+			var targetRow = scrollRange && activeSourceLineRows[scrollRange.start];
+			if (targetRow)
+				gtfoScrollIntoViewIfNeeded(sourcePanel, targetRow);
+		}
+		else if (Number.isFinite(pendingSearchScrollLineIndex)) {
+			var searchTargetRow = activeSourceLineRows[pendingSearchScrollLineIndex];
+			pendingSearchScrollLineIndex = null;
+			if (searchTargetRow)
+				gtfoScrollIntoViewIfNeeded(sourcePanel, searchTargetRow);
+		}
+		else if (!keepScroll) {
+			sourcePanel.scrollTop = 0;
+			sourcePanel.scrollLeft = 0;
+		}
+
+		if (updateActiveSourceMarkers)
+			scheduleSourceMarkerUpdate();
+		return true;
+	}
+
+	function gtfoRefreshActiveSearchHighlights(group) {
+		var sourceCode = document.getElementById('gtfo-source-code');
+		if (!sourceCode)
+			return;
+
+		sourceCode.querySelectorAll('.gtfo-source-search-selected').forEach((span) => {
+			span.replaceWith(document.createTextNode(span.textContent || ''));
+		});
+
+		for (let lineIndex of gtfoGetSelectedSearchLineIndexes(group)) {
+			var row = activeSourceLineRows[lineIndex];
+			var lineCode = row && row.querySelector('.gtfo-line-code');
+			if (lineCode) {
+				lineCode.normalize();
+				gtfoApplySearchHighlights(lineCode, group, lineIndex);
+			}
+		}
+	}
+
 	async function renderSource(group, selectedComments, keepScroll, scrollComment) {
 		var sourceTitle = document.getElementById('gtfo-source-title-text');
 		var sourceCode = document.getElementById('gtfo-source-code');
@@ -1867,6 +1933,9 @@ function gtfoBuildComments(data) {
 		var selectedSourceLines = selectedSourceLinesBySource.get(sourceStateKey) || new Set();
 		var previousScrollTop = sourcePanel.scrollTop;
 		var previousScrollLeft = sourcePanel.scrollLeft;
+
+		if (updateActiveCommentHighlights(group, selectedComments, keepScroll, scrollComment))
+			return;
 
 		sourceTitle.textContent = `${group.title} [processing]`;
 		gtfoClearElement(sourceCode);
@@ -1885,6 +1954,7 @@ function gtfoBuildComments(data) {
 		var lines = sourceLinesBySource.get(sourceStateKey);
 		var highlightedLines = highlightedLinesBySource.get(sourceStateKey);
 		var selectedLineIndexes = new Set(analysis.selectedLineIndexes || []);
+		activeCommentLineIndexes = selectedLineIndexes;
 		var scrollRange = analysis.scrollRange || null;
 		var foldRanges = foldRangesBySource.get(sourceStateKey);
 		var lineNumberWidth = String(lines.length).length;
@@ -1901,6 +1971,8 @@ function gtfoBuildComments(data) {
 		gtfoClearElement(sourceMarkers);
 		var lineRows = [];
 		activeSourceLineRows = lineRows;
+		renderedSourceGroup = group;
+		renderedSourceStateKey = sourceStateKey;
 		var hiddenLineCounts = new Uint32Array(lines.length);
 
 		function updateSourceMarkers() {
@@ -1932,7 +2004,7 @@ function gtfoBuildComments(data) {
 				markerFragment.appendChild(marker);
 			}
 
-			for (let lineIndex of selectedLineIndexes)
+			for (let lineIndex of activeCommentLineIndexes)
 				appendMarker(lineIndex, 'gtfo-source-marker');
 
 			for (let lineIndex of selectedSourceLines)
@@ -2364,6 +2436,8 @@ function gtfoBuildComments(data) {
 		if (skipSourceRender)
 			return;
 
+		if (activeGroup)
+			gtfoRefreshActiveSearchHighlights(activeGroup);
 		if (updateActiveSourceMarkers)
 			scheduleSourceMarkerUpdate();
 	}
@@ -3075,7 +3149,7 @@ function gtfoSetLoadingProgress(session) {
 	lines.textContent = outputLines.map((line) => `> ${line}`).join('\n');
 	lines.scrollTop = lines.scrollHeight;
 	gtfoUpdatePendingTabs(session);
-	loading.classList.toggle('gtfo-loading-active', progress < 100 || session.status == 'error');
+	loading.classList.toggle('gtfo-loading-active', !gtfoHasRendered && (progress < 100 || session.status == 'error'));
 }
 
 function gtfoFinishLoading() {
@@ -3241,6 +3315,8 @@ function gtfoRefreshReportData(data, session) {
 			var tabElement = document.getElementById(tabName);
 			if (!tabElement || !tabElement.hasChildNodes())
 				return;
+			if (gtfoTabHasActiveDialog(tabName))
+				return;
 
 			gtfoClearElement(tabElement);
 			gtfoRenderTab(tabName);
@@ -3256,6 +3332,13 @@ function gtfoRefreshReportData(data, session) {
 			gtfoPendingTabs.delete(tabName);
 		}, 150 + (index * 180));
 	});
+}
+
+function gtfoTabHasActiveDialog(tabName) {
+	if (tabName != 'Images')
+		return false;
+
+	return !!document.querySelector('#gtfo-image-view-overlay.gtfo-image-view-open, #gtfo-image-info-overlay.gtfo-image-info-open');
 }
 
 function gtfoRenderTab(tabName) {
