@@ -23,21 +23,15 @@ body {
 }
 
 .gtfo-menu-button::after {
-  content: " >";
+  content: " v";
   float: right;
 }
 
 .gtfo-submenu {
-  display: none;
+  display: block;
   margin-left: 12px;
   border-left: 1px solid #555;
   padding-left: 6px;
-}
-
-.gtfo-menu:hover .gtfo-submenu,
-.gtfo-menu:focus-within .gtfo-submenu,
-.gtfo-menu.gtfo-submenu-open .gtfo-submenu {
-  display: block;
 }
 
 .gtfo-submenu-button {

@@ -2741,7 +2741,7 @@ function gtfoBuildImages(data) {
 	];
 	var activeGridSize = gridSizes[2];
 	var activePage = 0;
-	var showAllImages = true;
+	var showAllImages = false;
 
 	if (imageList.length == 0) {
 		gtfoClearElement(images);
