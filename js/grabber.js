@@ -56,17 +56,18 @@ function gtfoRunWorkerTask(type, payload, transfer) {
 }
 
 async function gtfoAnalyzeSourceInWorker(rawSource, sourceType, prettifySource, selectedComments, scrollComment) {
+	var source = prettifySource ? gtfoFormatSource(rawSource, sourceType) : rawSource;
+
 	try {
 		return await gtfoRunWorkerTask('analyzeSource', {
-			source: rawSource,
+			source: source,
 			sourceType: sourceType,
-			prettify: prettifySource,
+			prettify: false,
 			selectedComments: selectedComments || [],
 			scrollComment: scrollComment || ''
 		});
 	}
 	catch (error) {
-		var source = prettifySource ? gtfoFormatSource(rawSource, sourceType) : rawSource;
 		var lines = source.split(/\r?\n/);
 		return {
 			source: source,
@@ -926,6 +927,7 @@ function gtfoCreateCommentLayout() {
 		{ value: 'all', label: 'All selected' },
 		{ value: 'red', label: 'Red' },
 		{ value: 'green', label: 'Green' },
+		{ value: 'orange', label: 'Orange' },
 		{ value: 'cyan', label: 'Cyan' }
 	].forEach((optionData) => {
 		var option = document.createElement('button');
@@ -957,16 +959,167 @@ function gtfoCreateCommentLayout() {
 
 	var sourceMarkers = document.createElement('div');
 	sourceMarkers.id = 'gtfo-source-markers';
+	var sourceSplitter = document.createElement('div');
+	sourceSplitter.id = 'gtfo-source-splitter';
+	sourceSplitter.title = 'Resize source panes';
 
 	sourceTitle.appendChild(sourceTitleText);
 	sourceTitle.appendChild(sourceActions);
 	sourcePanel.appendChild(sourceTitle);
 	sourcePanel.appendChild(sourceCode);
 	sourcePanel.appendChild(sourceMarkers);
+
+	var dock = document.createElement('div');
+	dock.id = 'gtfo-source-dock';
+
+	var dockResizer = document.createElement('div');
+	dockResizer.id = 'gtfo-dock-resizer';
+	dockResizer.title = 'Resize search panel';
+
+	var dockTabs = document.createElement('div');
+	dockTabs.id = 'gtfo-source-dock-tabs';
+	var searchTab = document.createElement('button');
+	searchTab.className = 'gtfo-dock-tab gtfo-dock-tab-active';
+	searchTab.type = 'button';
+	searchTab.textContent = 'Search';
+	dockTabs.appendChild(searchTab);
+
+	var dockBody = document.createElement('div');
+	dockBody.id = 'gtfo-source-dock-body';
+	var searchPanel = document.createElement('div');
+	searchPanel.id = 'gtfo-source-search-panel';
+
+	var searchControls = document.createElement('div');
+	searchControls.id = 'gtfo-source-search-controls';
+	var searchLabel = document.createElement('label');
+	searchLabel.textContent = 'Search:';
+	var searchScope = document.createElement('select');
+	searchScope.id = 'gtfo-source-search-scope';
+	[
+		{ value: 'current', label: 'Current source' },
+		{ value: 'all', label: 'All' },
+		{ value: 'html', label: 'HTML' },
+		{ value: 'javascript', label: 'JS' },
+		{ value: 'css', label: 'CSS' }
+	].forEach((optionData) => {
+		var option = document.createElement('option');
+		option.value = optionData.value;
+		option.textContent = optionData.label;
+		searchScope.appendChild(option);
+	});
+
+	var searchInput = document.createElement('input');
+	searchInput.id = 'gtfo-source-search-input';
+	searchInput.type = 'search';
+	searchInput.placeholder = 'Text or /regex/flags';
+
+	var regexLabel = document.createElement('label');
+	regexLabel.id = 'gtfo-source-search-regex-toggle';
+	regexLabel.className = 'gtfo-search-toggle';
+	var regexInput = document.createElement('input');
+	regexInput.id = 'gtfo-source-search-regex';
+	regexInput.type = 'checkbox';
+	regexLabel.appendChild(regexInput);
+	regexLabel.append(' Regex');
+
+	var caseLabel = document.createElement('label');
+	caseLabel.id = 'gtfo-source-search-case-toggle';
+	caseLabel.className = 'gtfo-search-toggle';
+	var caseInput = document.createElement('input');
+	caseInput.id = 'gtfo-source-search-case';
+	caseInput.type = 'checkbox';
+	caseLabel.appendChild(caseInput);
+	caseLabel.append(' Aa');
+
+	var selectAllLabel = document.createElement('label');
+	selectAllLabel.id = 'gtfo-source-search-select-all-toggle';
+	selectAllLabel.className = 'gtfo-search-toggle';
+	var selectAllInput = document.createElement('input');
+	selectAllInput.id = 'gtfo-source-search-select-all';
+	selectAllInput.type = 'checkbox';
+	selectAllLabel.appendChild(selectAllInput);
+	selectAllLabel.append(' Select all');
+
+	searchControls.appendChild(searchLabel);
+	searchControls.appendChild(searchScope);
+	searchControls.appendChild(searchInput);
+	searchControls.appendChild(regexLabel);
+	searchControls.appendChild(caseLabel);
+	searchControls.appendChild(selectAllLabel);
+
+	var searchSummary = document.createElement('div');
+	searchSummary.id = 'gtfo-source-search-summary';
+	searchSummary.textContent = 'Enter a search query.';
+
+	var searchResults = document.createElement('div');
+	searchResults.id = 'gtfo-source-search-results';
+
+	searchPanel.appendChild(searchControls);
+	searchPanel.appendChild(searchSummary);
+	searchPanel.appendChild(searchResults);
+	dockBody.appendChild(searchPanel);
+	dock.appendChild(dockResizer);
+	dock.appendChild(dockBody);
+	dock.appendChild(dockTabs);
+
 	layout.appendChild(nav);
+	layout.appendChild(sourceSplitter);
 	layout.appendChild(sourcePanel);
+	layout.appendChild(dock);
 
 	return layout;
+}
+
+function gtfoBindSourceLayoutResizers() {
+	var layout = document.getElementById('gtfo-comments-layout');
+	var verticalSplitter = document.getElementById('gtfo-source-splitter');
+	var dockResizer = document.getElementById('gtfo-dock-resizer');
+	if (!layout || !verticalSplitter || !dockResizer)
+		return;
+
+	function clamp(value, minimum, maximum) {
+		return Math.max(minimum, Math.min(maximum, value));
+	}
+
+	verticalSplitter.addEventListener('mousedown', (event) => {
+		event.preventDefault();
+		verticalSplitter.classList.add('gtfo-splitter-active');
+
+		function onMove(moveEvent) {
+			var rect = layout.getBoundingClientRect();
+			var navWidth = clamp(moveEvent.clientX - rect.left, 240, rect.width - 360);
+			layout.style.gridTemplateColumns = `${navWidth}px 6px minmax(300px, 1fr)`;
+		}
+
+		function onUp() {
+			verticalSplitter.classList.remove('gtfo-splitter-active');
+			document.removeEventListener('mousemove', onMove);
+			document.removeEventListener('mouseup', onUp);
+		}
+
+		document.addEventListener('mousemove', onMove);
+		document.addEventListener('mouseup', onUp);
+	});
+
+	dockResizer.addEventListener('mousedown', (event) => {
+		event.preventDefault();
+		dockResizer.classList.add('gtfo-splitter-active');
+
+		function onMove(moveEvent) {
+			var rect = layout.getBoundingClientRect();
+			var dockHeight = clamp(rect.bottom - moveEvent.clientY, 120, rect.height - 180);
+			layout.style.gridTemplateRows = `minmax(0, 1fr) ${dockHeight}px`;
+		}
+
+		function onUp() {
+			dockResizer.classList.remove('gtfo-splitter-active');
+			document.removeEventListener('mousemove', onMove);
+			document.removeEventListener('mouseup', onUp);
+		}
+
+		document.addEventListener('mousemove', onMove);
+		document.addEventListener('mouseup', onUp);
+	});
 }
 
 function gtfoGetImageUrl(image) {
@@ -1392,16 +1545,21 @@ function gtfoBuildComments(data) {
 	var updateActiveSourceMarkers = null;
 	var sourceMarkerResizeFrame = null;
 	var sourceResizeObserver = null;
+	var pendingSearchScrollLineIndex = null;
+	var sourceNodeByGroup = new WeakMap();
 
 	gtfoClearElement(comments);
 	comments.appendChild(gtfoCreateCommentLayout());
+	gtfoBindSourceLayoutResizers();
 
 	var nav = document.getElementById('gtfo-comments-nav');
-	document.getElementById('gtfo-prettify-source').addEventListener('click', (event) => {
+	document.getElementById('gtfo-prettify-source').addEventListener('click', async (event) => {
 		prettifySource = !prettifySource;
-		event.target.classList.toggle('gtfo-prettify-active', prettifySource);
+		document.getElementById('gtfo-prettify-source').classList.toggle('gtfo-prettify-active', prettifySource);
 		if (activeGroup)
-			renderSource(activeGroup, gtfoGetSelectedCommentsForGroup(activeGroup), true);
+			await renderSource(activeGroup, gtfoGetSelectedCommentsForGroup(activeGroup), false);
+		if (searchInput && searchInput.value.trim())
+			gtfoRunSourceSearch();
 	});
 	document.addEventListener('mouseup', () => {
 		isSelectingSourceLines = false;
@@ -1512,6 +1670,8 @@ function gtfoBuildComments(data) {
 		var cyanSelection = gtfoGetCyanSelectionText();
 		if (mode == 'cyan')
 			return cyanSelection;
+		if (mode == 'orange')
+			return gtfoGetOrangeSelectionText();
 
 		var rows = Array.from(document.querySelectorAll('#gtfo-source-code .gtfo-source-line'));
 		var selectedRows = rows.filter((row) => {
@@ -1530,8 +1690,11 @@ function gtfoBuildComments(data) {
 			return lineCode ? lineCode.textContent : '';
 		}).join('\r\n');
 
-		if (mode == 'all' && cyanSelection)
-			return gtfoAppendUniqueSelectionText(sourceLines, cyanSelection);
+		if (mode == 'all') {
+			sourceLines = gtfoAppendUniqueSelectionText(sourceLines, gtfoGetOrangeSelectionText());
+			if (cyanSelection)
+				sourceLines = gtfoAppendUniqueSelectionText(sourceLines, cyanSelection);
+		}
 
 		return sourceLines;
 	}
@@ -1580,6 +1743,69 @@ function gtfoBuildComments(data) {
 		var mode = gtfoGetSelectionExportMode();
 		gtfoDownloadTextFile(`page_selections_${gtfoGetSelectionTimestamp()}.txt`, gtfoGetSourceSelectionText(mode));
 	});
+
+	var searchScopeInput = document.getElementById('gtfo-source-search-scope');
+	var searchInput = document.getElementById('gtfo-source-search-input');
+	var searchRegexInput = document.getElementById('gtfo-source-search-regex');
+	var searchRegexToggle = document.getElementById('gtfo-source-search-regex-toggle');
+	var searchCaseInput = document.getElementById('gtfo-source-search-case');
+	var searchCaseToggle = document.getElementById('gtfo-source-search-case-toggle');
+	var searchSelectAllInput = document.getElementById('gtfo-source-search-select-all');
+	var searchSelectAllToggle = document.getElementById('gtfo-source-search-select-all-toggle');
+	var searchSummary = document.getElementById('gtfo-source-search-summary');
+	var searchResults = document.getElementById('gtfo-source-search-results');
+	var searchTimer = null;
+	var currentSearchResults = [];
+	var selectedSearchResultKeys = new Set();
+	var selectedSearchRangesByGroup = new WeakMap();
+
+	function gtfoScheduleSearch() {
+		clearTimeout(searchTimer);
+		searchTimer = setTimeout(gtfoRunSourceSearch, 120);
+	}
+
+	function gtfoUpdateSearchRegexToggle() {
+		searchRegexToggle.classList.toggle('gtfo-search-toggle-active', searchRegexInput.checked);
+	}
+
+	function gtfoUpdateSearchCaseToggle() {
+		searchCaseToggle.classList.toggle('gtfo-search-toggle-active', searchCaseInput.checked);
+	}
+
+	function gtfoUpdateSearchSelectAllToggle() {
+		searchSelectAllToggle.classList.toggle('gtfo-search-toggle-active', searchSelectAllInput.checked);
+	}
+
+	searchScopeInput.addEventListener('change', gtfoRunSourceSearch);
+	searchInput.addEventListener('input', gtfoScheduleSearch);
+	searchRegexToggle.addEventListener('click', (event) => {
+		event.preventDefault();
+		searchRegexInput.checked = !searchRegexInput.checked;
+		gtfoUpdateSearchRegexToggle();
+		gtfoRunSourceSearch();
+	});
+	gtfoUpdateSearchRegexToggle();
+	searchCaseToggle.addEventListener('click', (event) => {
+		event.preventDefault();
+		searchCaseInput.checked = !searchCaseInput.checked;
+		gtfoUpdateSearchCaseToggle();
+		gtfoRunSourceSearch();
+	});
+	gtfoUpdateSearchCaseToggle();
+	searchSelectAllToggle.addEventListener('click', (event) => {
+		event.preventDefault();
+		searchSelectAllInput.checked = !searchSelectAllInput.checked;
+		gtfoUpdateSearchSelectAllToggle();
+		if (searchSelectAllInput.checked) {
+			for (let result of currentSearchResults)
+				selectedSearchResultKeys.add(result.key);
+		}
+		else {
+			selectedSearchResultKeys.clear();
+		}
+		gtfoRefreshSearchSelections();
+	});
+	gtfoUpdateSearchSelectAllToggle();
 
 	function gtfoGetSelectedCommentsForGroup(group) {
 		return Array.from(document.querySelectorAll('.gtfo-comment-active'))
@@ -1683,6 +1909,9 @@ function gtfoBuildComments(data) {
 
 			for (let lineIndex of selectedSourceLines)
 				appendMarker(lineIndex, 'gtfo-source-marker gtfo-source-marker-line');
+
+			for (let lineIndex of gtfoGetSelectedSearchLineIndexes(group))
+				appendMarker(lineIndex, 'gtfo-source-marker gtfo-source-marker-orange');
 
 			for (let lineIndex of gtfoGetCyanSelectionLineIndexes())
 				appendMarker(lineIndex, 'gtfo-source-marker gtfo-source-marker-cyan');
@@ -1844,6 +2073,7 @@ function gtfoBuildComments(data) {
 			var lineCode = document.createElement('span');
 			lineCode.className = 'gtfo-line-code';
 			gtfoSetHighlightedSyntax(lineCode, highlightedLines[index]);
+			gtfoApplySearchHighlights(lineCode, group, index);
 
 			lineElement.appendChild(lineNumber);
 			lineElement.appendChild(lineCode);
@@ -1860,6 +2090,12 @@ function gtfoBuildComments(data) {
 			var firstHighlight = sourceCode.querySelector('.gtfo-source-scroll-target') || sourceCode.querySelector('.gtfo-source-highlight');
 			if (firstHighlight)
 				gtfoScrollIntoViewIfNeeded(sourcePanel, firstHighlight);
+		}
+		else if (Number.isFinite(pendingSearchScrollLineIndex)) {
+			var targetRow = lineRows[pendingSearchScrollLineIndex];
+			pendingSearchScrollLineIndex = null;
+			if (targetRow)
+				gtfoScrollIntoViewIfNeeded(sourcePanel, targetRow);
 		}
 		else if (keepScroll) {
 			sourcePanel.scrollTop = previousScrollTop;
@@ -1878,6 +2114,17 @@ function gtfoBuildComments(data) {
 		node.classList.add('gtfo-tree-node-active');
 		activeGroup = group;
 		renderSource(group, gtfoGetSelectedCommentsForGroup(group));
+		if (searchScopeInput.value == 'current' && searchInput.value.trim())
+			gtfoRunSourceSearch();
+	}
+
+	function gtfoJumpToSearchResult(group, lineIndex) {
+		var sourceNode = sourceNodeByGroup.get(group);
+		if (!sourceNode)
+			return;
+
+		pendingSearchScrollLineIndex = lineIndex;
+		setActiveGroup(sourceNode, group);
 	}
 
 	function setActiveComment(event, item, sourceNode, group, comment) {
@@ -1916,6 +2163,320 @@ function gtfoBuildComments(data) {
 
 	function countGroupComments(groupList) {
 		return groupList.reduce((total, group) => total + group.comments.length, 0);
+	}
+
+	function gtfoGetSearchGroups() {
+		var scope = searchScopeInput.value;
+		if (scope == 'current')
+			return activeGroup ? [activeGroup] : [];
+
+		return groups.filter((group) => {
+			if (scope == 'all')
+				return true;
+			return gtfoGetSourceType(group) == scope;
+		});
+	}
+
+	function gtfoParseSearchPattern(query, regexMode, caseSensitive) {
+		if (!query)
+			return null;
+
+		if (regexMode) {
+			var pattern = query;
+			var flags = caseSensitive ? 'g' : 'gi';
+			var slashMatch = query.match(/^\/([\s\S]*)\/([a-z]*)$/i);
+			if (slashMatch) {
+				pattern = slashMatch[1];
+				flags = slashMatch[2] || flags;
+			}
+			if (!flags.includes('g'))
+				flags += 'g';
+			if (!caseSensitive && !flags.includes('i'))
+				flags += 'i';
+			if (caseSensitive)
+				flags = flags.replace(/i/g, '');
+
+			return new RegExp(pattern, flags);
+		}
+
+		return new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSensitive ? 'g' : 'gi');
+	}
+
+	function gtfoGetGroupSourceLines(group) {
+		var sourceStateKey = gtfoGetSourceStateKey(group);
+		var source = sourceTextBySource.get(sourceStateKey);
+		if (typeof source != 'string') {
+			var rawSource = group.source || '';
+			source = prettifySource ? gtfoFormatSource(rawSource, gtfoGetSourceType(group)) : rawSource;
+			sourceTextBySource.set(sourceStateKey, source);
+		}
+		return String(source || '').split(/\r?\n/);
+	}
+
+	function gtfoGetLineMatches(line, matcher, regexMode) {
+		line = String(line || '');
+		matcher.lastIndex = 0;
+		var matches = Array.from(line.matchAll(matcher));
+		if (matches.length > 0 || !regexMode)
+			return matches;
+
+		var trimmedLine = line.trim();
+		if (trimmedLine == line)
+			return matches;
+
+		var trimOffset = line.indexOf(trimmedLine);
+		matcher.lastIndex = 0;
+		return Array.from(trimmedLine.matchAll(matcher)).map((match) => {
+			match.index = (match.index || 0) + trimOffset;
+			return match;
+		});
+	}
+
+	function gtfoBuildSearchResultKey(group, lineIndex, matchIndex) {
+		return `${group.title}::${group.url || group.displayName || ''}::${lineIndex}::${matchIndex}`;
+	}
+
+	function gtfoGetSelectedSearchResults() {
+		return currentSearchResults.filter((result) => selectedSearchResultKeys.has(result.key));
+	}
+
+	function gtfoGetOrangeSelectionText() {
+		return gtfoGetSelectedSearchResults()
+			.map((result) => result.text)
+			.filter((text) => text)
+			.join('\r\n');
+	}
+
+	function gtfoRebuildSelectedSearchRanges() {
+		selectedSearchRangesByGroup = new WeakMap();
+
+		for (let result of gtfoGetSelectedSearchResults()) {
+			var rangesByLine = selectedSearchRangesByGroup.get(result.group);
+			if (!rangesByLine) {
+				rangesByLine = new Map();
+				selectedSearchRangesByGroup.set(result.group, rangesByLine);
+			}
+
+			var lineRanges = rangesByLine.get(result.lineIndex) || [];
+			lineRanges.push({
+				start: result.start,
+				end: result.end
+			});
+			rangesByLine.set(result.lineIndex, lineRanges);
+		}
+	}
+
+	function gtfoGetSelectedSearchLineIndexes(group) {
+		var rangesByLine = selectedSearchRangesByGroup.get(group);
+		return rangesByLine ? Array.from(rangesByLine.keys()) : [];
+	}
+
+	function gtfoApplySearchHighlights(lineCode, group, lineIndex) {
+		var rangesByLine = selectedSearchRangesByGroup.get(group);
+		var ranges = rangesByLine && rangesByLine.get(lineIndex);
+		if (!ranges || ranges.length == 0)
+			return;
+
+		ranges = ranges.slice().sort((a, b) => a.start - b.start);
+		var currentOffset = 0;
+		var walker = document.createTreeWalker(lineCode, NodeFilter.SHOW_TEXT, null, null);
+		var textNodes = [];
+		var node;
+		while (node = walker.nextNode()) {
+			textNodes.push({
+				node: node,
+				start: currentOffset,
+				end: currentOffset + node.nodeValue.length
+			});
+			currentOffset += node.nodeValue.length;
+		}
+
+		for (let index = textNodes.length - 1; index >= 0; index--) {
+			var item = textNodes[index];
+			var nodeRanges = ranges
+				.map((range) => ({
+					start: Math.max(range.start, item.start) - item.start,
+					end: Math.min(range.end, item.end) - item.start
+				}))
+				.filter((range) => range.end > range.start)
+				.sort((a, b) => b.start - a.start);
+
+			for (let range of nodeRanges) {
+				var matchRange = document.createRange();
+				matchRange.setStart(item.node, range.start);
+				matchRange.setEnd(item.node, range.end);
+				var span = document.createElement('span');
+				span.className = 'gtfo-source-search-selected';
+				matchRange.surroundContents(span);
+			}
+		}
+	}
+
+	function gtfoRefreshSearchSelections(skipSourceRender) {
+		gtfoRebuildSelectedSearchRanges();
+		searchSelectAllInput.checked = currentSearchResults.length > 0 && currentSearchResults.every((result) => selectedSearchResultKeys.has(result.key));
+		gtfoUpdateSearchSelectAllToggle();
+
+		searchResults.querySelectorAll('.gtfo-search-result').forEach((button) => {
+			var keys = String(button.dataset.searchKeys || '').split('\n').filter((key) => key);
+			button.classList.toggle('gtfo-search-result-selected', keys.length > 0 && keys.every((key) => selectedSearchResultKeys.has(key)));
+		});
+
+		if (skipSourceRender)
+			return;
+
+		if (activeGroup)
+			renderSource(activeGroup, gtfoGetSelectedCommentsForGroup(activeGroup), true);
+		else if (updateActiveSourceMarkers)
+			scheduleSourceMarkerUpdate();
+	}
+
+	function gtfoToggleSearchResultSet(results, additive, skipSourceRender) {
+		results = results || [];
+		if (results.length == 0)
+			return;
+
+		if (additive) {
+			var allSelected = results.every((result) => selectedSearchResultKeys.has(result.key));
+			for (let result of results) {
+				if (allSelected)
+					selectedSearchResultKeys.delete(result.key);
+				else
+					selectedSearchResultKeys.add(result.key);
+			}
+		}
+		else if (results.every((result) => selectedSearchResultKeys.has(result.key)) && selectedSearchResultKeys.size == results.length) {
+			selectedSearchResultKeys.clear();
+		}
+		else {
+			selectedSearchResultKeys.clear();
+			for (let result of results)
+				selectedSearchResultKeys.add(result.key);
+		}
+
+		gtfoRefreshSearchSelections(skipSourceRender);
+	}
+
+	function gtfoOpenSearchResultGroup(group, results) {
+		if (results && results.length > 0)
+			gtfoJumpToSearchResult(group, results[0].lineIndex);
+		else {
+			var sourceNode = sourceNodeByGroup.get(group);
+			if (sourceNode)
+				setActiveGroup(sourceNode, group);
+		}
+	}
+
+	function gtfoRunSourceSearch() {
+		var query = searchInput.value.trim();
+		gtfoClearElement(searchResults);
+		currentSearchResults = [];
+		selectedSearchResultKeys.clear();
+		selectedSearchRangesByGroup = new WeakMap();
+
+		if (!query) {
+			searchSummary.textContent = 'Enter a search query.';
+			gtfoRefreshSearchSelections();
+			return;
+		}
+
+		var matcher;
+		var regexMode = searchRegexInput.checked || /^\/[\s\S]*\/[a-z]*$/i.test(query);
+		var caseSensitive = searchCaseInput.checked;
+		try {
+			matcher = gtfoParseSearchPattern(query, regexMode, caseSensitive);
+		}
+		catch (error) {
+			searchSummary.textContent = `Invalid regex: ${error.message || error}`;
+			return;
+		}
+		if (!matcher)
+			return;
+
+		var searchGroups = gtfoGetSearchGroups();
+		var totalMatches = 0;
+		var matchedFiles = 0;
+		var resultFragment = document.createDocumentFragment();
+
+		for (let group of searchGroups) {
+			var lines = gtfoGetGroupSourceLines(group);
+			var groupMatches = [];
+
+			for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+				var line = String(lines[lineIndex] || '');
+				var matches = gtfoGetLineMatches(line, matcher, regexMode);
+				if (matches.length == 0)
+					continue;
+
+				totalMatches += matches.length;
+				var resultMatches = matches.map((match, matchIndex) => {
+					var text = match[0] || '';
+					var start = Number.isFinite(match.index) ? match.index : line.indexOf(text);
+					var end = start + text.length;
+					return {
+						key: gtfoBuildSearchResultKey(group, lineIndex, matchIndex),
+						group: group,
+						lineIndex: lineIndex,
+						start: start,
+						end: end,
+						text: text
+					};
+				}).filter((match) => match.text && match.start >= 0);
+				currentSearchResults.push.apply(currentSearchResults, resultMatches);
+				groupMatches.push({
+					lineIndex: lineIndex,
+					count: matches.length,
+					preview: line.trim() || ' ',
+					matches: resultMatches
+				});
+			}
+
+			if (groupMatches.length == 0)
+				continue;
+
+			matchedFiles++;
+			var fileNode = document.createElement('div');
+			fileNode.className = 'gtfo-search-file';
+			var fileTitle = document.createElement('button');
+			fileTitle.type = 'button';
+			fileTitle.className = 'gtfo-search-file-title';
+			fileTitle.textContent = `${group.displayName || group.title} [${gtfoPlural(groupMatches.reduce((total, item) => total + item.count, 0), 'match', 'matches')}]`;
+			var groupResultMatches = groupMatches.flatMap((item) => item.matches);
+			fileTitle.addEventListener('click', () => gtfoOpenSearchResultGroup(group, groupResultMatches));
+			fileNode.appendChild(fileTitle);
+
+			for (let result of groupMatches) {
+				var button = document.createElement('button');
+				button.type = 'button';
+				button.className = 'gtfo-search-result';
+				button.dataset.searchKeys = result.matches.map((match) => match.key).join('\n');
+				button.addEventListener('click', (event) => {
+					gtfoToggleSearchResultSet(result.matches, event.altKey || event.getModifierState('Alt'), true);
+					gtfoJumpToSearchResult(group, result.lineIndex);
+				});
+
+				var lineNumber = document.createElement('span');
+				lineNumber.className = 'gtfo-search-line';
+				lineNumber.textContent = `Ln ${result.lineIndex + 1}`;
+				var preview = document.createElement('span');
+				preview.className = 'gtfo-search-preview';
+				preview.textContent = result.preview;
+
+				button.appendChild(lineNumber);
+				button.appendChild(preview);
+				fileNode.appendChild(button);
+			}
+
+			resultFragment.appendChild(fileNode);
+		}
+
+		searchSummary.textContent = `${gtfoPlural(totalMatches, 'result', 'results')} in ${gtfoPlural(matchedFiles, 'source', 'sources')}`;
+		searchResults.appendChild(resultFragment);
+		if (searchSelectAllInput.checked) {
+			for (let result of currentSearchResults)
+				selectedSearchResultKeys.add(result.key);
+		}
+		gtfoRefreshSearchSelections();
 	}
 
 	function createTreeNode(label, options) {
@@ -1978,6 +2539,7 @@ function gtfoBuildComments(data) {
 
 		sourceNode.classList.add('gtfo-source-file-node');
 		sourceNode.gtfoGroup = group;
+		sourceNodeByGroup.set(group, sourceNode);
 		if (hasComments) {
 			sourceNode.querySelector(':scope > .gtfo-tree-label').addEventListener('click', (event) => {
 				if (event.target == sourceNode.querySelector(':scope > .gtfo-tree-label'))
@@ -2091,7 +2653,7 @@ function gtfoBuildImages(data) {
 	];
 	var activeGridSize = gridSizes[2];
 	var activePage = 0;
-	var showAllImages = false;
+	var showAllImages = true;
 
 	if (imageList.length == 0) {
 		gtfoClearElement(images);
@@ -2625,7 +3187,7 @@ function gtfoRenderTab(tabName) {
 }
 
 async function gtfoTryRenderSession(session) {
-	if (!session || gtfoHasRendered)
+	if (!session)
 		return false;
 
 	gtfoSetLoadingProgress(session);
@@ -2638,6 +3200,11 @@ async function gtfoTryRenderSession(session) {
 
 		if (!data)
 			return false;
+
+		if (gtfoHasRendered) {
+			gtfoRefreshReportData(data, session);
+			return true;
+		}
 
 		gtfoCurrentReportData = gtfoMergeReportData(gtfoCurrentReportData, data);
 		gtfoHasRendered = true;
