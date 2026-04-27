@@ -913,18 +913,174 @@ function gtfo_GetFullDocumentSource() {
 	}).join('\n');
 }
 
-async function gtfo_GetEmbeddedData() {
+async function gtfo_SetGrabberProgress(sessionId, progress, line) {
+	if (!sessionId || typeof browser != 'object' || !browser.storage || !browser.storage.local)
+		return;
+
+	try {
+		var result = await browser.storage.local.get('gtfo_grabber_session');
+		var session = result.gtfo_grabber_session || {};
+		var lines = Array.isArray(session.lines) ? session.lines.slice(-11) : [];
+		lines.push(line);
+		await browser.storage.local.set({
+			gtfo_grabber_session: {
+				...session,
+				id: sessionId,
+				status: 'loading',
+				progress: progress,
+				line: line,
+				lines: lines
+			}
+		});
+	}
+	catch (error) {
+		if (debugging)
+			console.log(`GTFO progress update failed: ${error}`);
+	}
+}
+
+function gtfo_GetEmbeddedDataBase(partial) {
+	return {
+		partial: !!partial,
+		pageUrl: window.location.href,
+		title: document.title || window.location.hostname || 'Page',
+		host: window.location.hostname || window.location.host || 'page',
+		url: window.location.href
+	};
+}
+
+async function gtfo_PublishGrabberData(sessionId, data, progress, line, status) {
+	if (!sessionId || typeof browser != 'object' || !browser.storage || !browser.storage.local)
+		return;
+
+	try {
+		var result = await browser.storage.local.get('gtfo_grabber_session');
+		var session = result.gtfo_grabber_session || {};
+		var lines = Array.isArray(session.lines) ? session.lines.slice(-11) : [];
+		lines.push(line);
+		await browser.storage.local.set({
+			gtfo_grabber_data: data,
+			gtfo_grabber_session: {
+				...session,
+				id: sessionId,
+				status: status || 'partial',
+				progress: progress,
+				line: line,
+				lines: lines,
+				dataReady: true
+			}
+		});
+	}
+	catch (error) {
+		if (debugging)
+			console.log(`GTFO data publish failed: ${error}`);
+	}
+}
+
+async function gtfo_GetEmbeddedData(sessionId, preferredTab) {
 	gtfoTextFromUrlCache.clear();
+	preferredTab = preferredTab || 'Urls';
+	var baseData = gtfo_GetEmbeddedDataBase(false);
+	var partialPublished = false;
+
+	function publishPartial(data, progress, line) {
+		if (partialPublished)
+			return Promise.resolve();
+
+		partialPublished = true;
+		return gtfo_PublishGrabberData(sessionId, data, progress, line, 'partial');
+	}
+
+	await gtfo_SetGrabberProgress(sessionId, 26, 'Scanning HTML comments');
 	var htmlComments = gtfo_GetHtmlComments();
+	var pageSource = null;
+	var urls = null;
+	var images = null;
+
+	if (preferredTab == 'Urls') {
+		await gtfo_SetGrabberProgress(sessionId, 34, 'Collecting links');
+		urls = gtfo_GetUrlList();
+		await publishPartial({
+			...baseData,
+			partial: true,
+			urls: urls,
+			images: [],
+			js: [],
+			css: [],
+			html: {
+				name: baseData.host,
+				comments: htmlComments
+			},
+			comments: {
+				html: htmlComments,
+				javascript: []
+			}
+		}, 42, 'Rendering URLs');
+	}
+	else if (preferredTab == 'Images') {
+		await gtfo_SetGrabberProgress(sessionId, 34, 'Collecting image references');
+		images = gtfo_GetImageList();
+		await publishPartial({
+			...baseData,
+			partial: true,
+			urls: [],
+			images: images,
+			js: [],
+			css: [],
+			html: {
+				name: baseData.host,
+				comments: htmlComments
+			},
+			comments: {
+				html: htmlComments,
+				javascript: []
+			}
+		}, 42, 'Rendering images');
+	}
+
+	await gtfo_SetGrabberProgress(sessionId, 34, 'Indexing script sources');
 	var scriptsPromise = gtfo_GetScriptList();
+	await gtfo_SetGrabberProgress(sessionId, 44, 'Indexing stylesheets');
 	var stylesheetsPromise = gtfo_GetCssList();
-	var pageSource = gtfo_GetFullDocumentSource();
-	var urls = gtfo_GetUrlList();
-	var images = gtfo_GetImageList();
+	await gtfo_SetGrabberProgress(sessionId, 54, 'Serializing page source');
+	pageSource = gtfo_GetFullDocumentSource();
+	if (!urls) {
+		await gtfo_SetGrabberProgress(sessionId, 64, 'Collecting links');
+		urls = gtfo_GetUrlList();
+	}
+	if (!images) {
+		await gtfo_SetGrabberProgress(sessionId, 72, 'Collecting image references');
+		images = gtfo_GetImageList();
+	}
+	await gtfo_SetGrabberProgress(sessionId, 82, 'Fetching external scripts and stylesheets');
 	var scripts = await scriptsPromise;
 	var stylesheets = await stylesheetsPromise;
 
+	if (preferredTab == 'Sources') {
+		await publishPartial({
+			...baseData,
+			partial: true,
+			pageHtml: pageSource,
+			html: {
+				name: baseData.host,
+				comments: htmlComments
+			},
+			js: scripts,
+			css: stylesheets,
+			urls: urls,
+			comments: {
+				html: htmlComments,
+				javascript: scripts.flatMap((script) => script.comments || [])
+			},
+			images: images
+		}, 90, 'Rendering sources');
+	}
+
+	await gtfo_SetGrabberProgress(sessionId, 92, 'Assembling report payload');
+
 	return {
+		...baseData,
+		partial: false,
 		pageUrl: window.location.href,
 		title: document.title || window.location.hostname || 'Page',
 		host: window.location.hostname || window.location.host || 'page',
@@ -1184,7 +1340,10 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 			gtfo_Unhide();
 			break;
 		case 'gtfo_grabber':
-			var embeddedData = await gtfo_GetEmbeddedData();
+			var embeddedData = await gtfo_GetEmbeddedData(
+				request.params && request.params.sessionId,
+				request.params && request.params.preferredTab
+			);
 			return Promise.resolve({
 				data: embeddedData
 			});

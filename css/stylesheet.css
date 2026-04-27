@@ -1,6 +1,6 @@
 html,
 body {
-  width: 100px;
+  width: 130px;
   background-color: #1b1b23;
 }
 
@@ -9,6 +9,10 @@ body {
 }
 
 .button {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  border: 0;
   font-family: 'Consolas', consolas !important;
   margin: 1% auto;
   padding: 1px;
@@ -16,6 +20,28 @@ body {
   font-size: 0.85em;
   color: #FFFFFF;
   cursor: pointer;
+}
+
+.gtfo-menu-button::after {
+  content: " >";
+  float: right;
+}
+
+.gtfo-submenu {
+  display: none;
+  margin-left: 12px;
+  border-left: 1px solid #555;
+  padding-left: 6px;
+}
+
+.gtfo-menu:hover .gtfo-submenu,
+.gtfo-menu:focus-within .gtfo-submenu,
+.gtfo-menu.gtfo-submenu-open .gtfo-submenu {
+  display: block;
+}
+
+.gtfo-submenu-button {
+  color: #cfcfcf;
 }
 
 .selector {

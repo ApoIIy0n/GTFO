@@ -66,6 +66,85 @@
 			display: block;
 		}
 
+		#gtfo-loading {
+			position: fixed;
+			inset: 0;
+			display: none;
+			background: #050506;
+			color: #ffd6d6;
+			z-index: 100;
+			font-family: Consolas, monospace;
+		}
+
+		#gtfo-loading.gtfo-loading-active {
+			display: grid;
+			place-items: center;
+		}
+
+		#gtfo-loading-console {
+			width: min(760px, calc(100vw - 32px));
+			border: 1px solid #ff2a2a;
+			background: #0f0606;
+			box-shadow: 0 0 24px rgba(255, 42, 42, 0.2);
+			padding: 18px;
+			box-sizing: border-box;
+		}
+
+		#gtfo-loading-title {
+			position: relative;
+			display: grid;
+			justify-items: center;
+			min-height: 104px;
+			margin-bottom: 14px;
+			overflow: hidden;
+		}
+
+		#gtfo-loading-logo {
+			margin: 0;
+			color: rgba(255, 42, 42, 0.38);
+			font: 11px/1 Consolas, monospace;
+			white-space: pre;
+			letter-spacing: 0;
+			user-select: none;
+		}
+
+		#gtfo-loading-version {
+			justify-self: end;
+			color: #ff3d3d;
+			font-size: 12px;
+			margin-top: 4px;
+			opacity: 0.86;
+		}
+
+		#gtfo-loading-bar {
+			height: 14px;
+			border: 1px solid #ff2a2a;
+			background: #020302;
+			margin-bottom: 10px;
+		}
+
+		#gtfo-loading-progress {
+			width: 0%;
+			height: 100%;
+			background: #ff2a2a;
+			box-shadow: 0 0 16px rgba(255, 42, 42, 0.65);
+			transition: width 160ms linear;
+		}
+
+		#gtfo-loading-percent {
+			color: #ff3d3d;
+			margin-bottom: 14px;
+		}
+
+		#gtfo-loading-lines {
+			height: 150px;
+			overflow: hidden;
+			margin: 0;
+			color: #ff6b6b;
+			white-space: pre-wrap;
+			line-height: 1.55;
+		}
+
 		#Page iframe {
 			width: 100%;
 			height: calc(100vh - 68px);
@@ -118,6 +197,34 @@
 		#Sources {
 			height: calc(100vh - 68px);
 			overflow: hidden;
+		}
+
+		.gtfo-tab-loading {
+			height: calc(100vh - 68px);
+			display: grid;
+			place-items: center;
+			background: #1f1f1f;
+			color: #ff2a2a;
+		}
+
+		.gtfo-tab-loading-inner {
+			width: min(620px, calc(100vw - 40px));
+			border: 1px solid #d00000;
+			background: #120303;
+			padding: 14px;
+			box-sizing: border-box;
+		}
+
+		.gtfo-tab-loading-title {
+			color: #ff0000;
+			margin-bottom: 8px;
+			text-transform: uppercase;
+		}
+
+		.gtfo-tab-loading-status {
+			color: #ff1f1f;
+			white-space: pre-wrap;
+			line-height: 1.5;
 		}
 
 		#gtfo-comments-layout {
@@ -726,6 +833,24 @@
 </head>
 
 <body>
+	<div id="gtfo-loading" class="gtfo-loading-active">
+		<div id="gtfo-loading-console">
+			<div id="gtfo-loading-title">
+				<pre id="gtfo-loading-logo">   █████████  ███████████ ███████████    ███████   
+  ███░░░░░███░█░░░███░░░█░░███░░░░░░█  ███░░░░░███ 
+ ███     ░░░ ░   ░███  ░  ░███   █ ░  ███     ░░███
+░███             ░███     ░███████   ░███      ░███
+░███    █████    ░███     ░███░░░█   ░███      ░███
+░░███  ░░███     ░███     ░███  ░    ░░███     ███ 
+ ░░█████████     █████    █████       ░░░███████░  
+  ░░░░░░░░░     ░░░░░    ░░░░░          ░░░░░░░    </pre>
+				<div id="gtfo-loading-version">v2.0.0.2 by Apollyon</div>
+			</div>
+			<div id="gtfo-loading-bar"><div id="gtfo-loading-progress"></div></div>
+			<div id="gtfo-loading-percent">0%</div>
+			<pre id="gtfo-loading-lines">&gt; waiting for session</pre>
+		</div>
+	</div>
 	<div id="gtfo-grabber-topbar">
 		<button class="gtfo-tab-button" data-tab="Page">Page</button>
 		<button class="gtfo-tab-button" data-tab="Urls">Urls</button>

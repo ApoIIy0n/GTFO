@@ -5,13 +5,25 @@ async function getActiveTab() {
 	return tabs[0];
 }
 
-async function openGrabberReport(data) {
-	await browser.storage.local.set({ gtfo_grabber_data: data });
-	return browser.tabs.create({ url: browser.runtime.getURL('html/grabber.html') });
+async function sendGrabberMessage(preferredTab) {
+	var tab = await getActiveTab();
+	await browser.runtime.sendMessage({
+		type: 'gtfo_start_grabber',
+		tabId: tab.id,
+		tabTitle: tab.title || '',
+		tabUrl: tab.url || '',
+		preferredTab: preferredTab || 'Urls'
+	});
 }
 
 async function sendTabMessage(subject, value) {
 	try {
+		if (subject == 'gtfo_grabber') {
+			await sendGrabberMessage(value && value.preferredTab ? value.preferredTab : 'Urls');
+			window.close();
+			return;
+		}
+
 		var tab = await getActiveTab();
 
 		if (subject != 'gtfo_grabber')
@@ -85,7 +97,16 @@ function listenForClicks() {
 
 		switch (selected) {
 			case "gtfo_grabber":
-				sendTabMessage("gtfo_grabber", null);
+				sendTabMessage("gtfo_grabber", { preferredTab: 'Urls' });
+				break;
+			case "gtfo_grabber_urls":
+				sendTabMessage("gtfo_grabber", { preferredTab: 'Urls' });
+				break;
+			case "gtfo_grabber_sources":
+				sendTabMessage("gtfo_grabber", { preferredTab: 'Sources' });
+				break;
+			case "gtfo_grabber_images":
+				sendTabMessage("gtfo_grabber", { preferredTab: 'Images' });
 				break;
 			case "gtfo_unhide":
 				sendTabMessage("gtfo_unhide", null);

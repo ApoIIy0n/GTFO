@@ -1,6 +1,100 @@
 var gtfoCurrentPageUrl = '';
+var gtfoCurrentReportData = null;
 var gtfoSyntaxHighlightCache = new Map();
 var gtfoSyntaxHighlightCacheLimit = 20000;
+var gtfoWorker = null;
+var gtfoWorkerRequestId = 0;
+var gtfoWorkerRequests = new Map();
+
+function gtfoGetWorker() {
+	if (gtfoWorker || typeof Worker != 'function')
+		return gtfoWorker;
+
+	try {
+		gtfoWorker = new Worker(browser.runtime.getURL('js/grabber-worker.js'));
+		gtfoWorker.addEventListener('message', (event) => {
+			var response = event.data || {};
+			var pending = gtfoWorkerRequests.get(response.id);
+			if (!pending)
+				return;
+
+			gtfoWorkerRequests.delete(response.id);
+			if (response.ok)
+				pending.resolve(response.result);
+			else
+				pending.reject(new Error(response.error || 'Worker task failed.'));
+		});
+		gtfoWorker.addEventListener('error', (event) => {
+			for (let pending of gtfoWorkerRequests.values())
+				pending.reject(new Error(event.message || 'Worker failed.'));
+			gtfoWorkerRequests.clear();
+			gtfoWorker = null;
+		});
+	}
+	catch (error) {
+		console.warn('GTFO worker unavailable, falling back to main thread.', error);
+		gtfoWorker = null;
+	}
+
+	return gtfoWorker;
+}
+
+function gtfoRunWorkerTask(type, payload, transfer) {
+	var worker = gtfoGetWorker();
+	if (!worker)
+		return Promise.reject(new Error('Worker unavailable.'));
+
+	var id = ++gtfoWorkerRequestId;
+	return new Promise((resolve, reject) => {
+		gtfoWorkerRequests.set(id, { resolve: resolve, reject: reject });
+		worker.postMessage({
+			id: id,
+			type: type,
+			payload: payload
+		}, transfer || []);
+	});
+}
+
+async function gtfoAnalyzeSourceInWorker(rawSource, sourceType, prettifySource, selectedComments, scrollComment) {
+	try {
+		return await gtfoRunWorkerTask('analyzeSource', {
+			source: rawSource,
+			sourceType: sourceType,
+			prettify: prettifySource,
+			selectedComments: selectedComments || [],
+			scrollComment: scrollComment || ''
+		});
+	}
+	catch (error) {
+		var source = prettifySource ? gtfoFormatSource(rawSource, sourceType) : rawSource;
+		var lines = source.split(/\r?\n/);
+		return {
+			source: source,
+			lines: lines,
+			highlightedLines: lines.map((line) => gtfoHighlightSyntax(line, sourceType) || ' '),
+			selectedLineIndexes: Array.from(gtfoBuildCommentLineSet(lines, selectedComments || [], sourceType)),
+			scrollRange: gtfoFindCommentRange(lines, scrollComment, sourceType),
+			foldRanges: Array.from(gtfoBuildFoldRanges(lines, sourceType).entries())
+		};
+	}
+}
+
+async function gtfoHashBlobInWorker(blob) {
+	var buffer = await blob.arrayBuffer();
+
+	try {
+		return await gtfoRunWorkerTask('hashBuffer', {
+			buffer: buffer
+		}, [buffer]);
+	}
+	catch (error) {
+		return {
+			md5: await gtfoMd5Blob(blob),
+			sha1: await gtfoHashBlob(blob, 'SHA-1'),
+			sha256: await gtfoHashBlob(blob, 'SHA-256')
+		};
+	}
+}
 
 function gtfoEscapeHtml(value) {
 	return String(value || '')
@@ -1505,7 +1599,7 @@ function gtfoBuildComments(data) {
 		return gtfoGetFoldStateKey(group);
 	}
 
-	function renderSource(group, selectedComments, keepScroll, scrollComment) {
+	async function renderSource(group, selectedComments, keepScroll, scrollComment) {
 		var sourceTitle = document.getElementById('gtfo-source-title-text');
 		var sourceCode = document.getElementById('gtfo-source-code');
 		var sourcePanel = document.getElementById('gtfo-source-panel');
@@ -1514,26 +1608,32 @@ function gtfoBuildComments(data) {
 		var foldStateKey = gtfoGetFoldStateKey(group);
 		var sourceStateKey = gtfoGetSourceStateKey(group);
 		var rawSource = group.source || 'Source was not available for this subject.';
-		if (!sourceTextBySource.has(sourceStateKey))
-			sourceTextBySource.set(sourceStateKey, prettifySource ? gtfoFormatSource(rawSource, sourceType) : rawSource);
-		var source = sourceTextBySource.get(sourceStateKey);
 		selectedComments = selectedComments || [];
-		if (!sourceLinesBySource.has(sourceStateKey))
-			sourceLinesBySource.set(sourceStateKey, source.split(/\r?\n/));
-		var lines = sourceLinesBySource.get(sourceStateKey);
-		if (!highlightedLinesBySource.has(sourceStateKey))
-			highlightedLinesBySource.set(sourceStateKey, lines.map((line) => gtfoHighlightSyntax(line, sourceType) || ' '));
-		var highlightedLines = highlightedLinesBySource.get(sourceStateKey);
-		var selectedLineIndexes = gtfoBuildCommentLineSet(lines, selectedComments, sourceType);
-		var scrollRange = gtfoFindCommentRange(lines, scrollComment, sourceType);
-		if (!foldRangesBySource.has(sourceStateKey))
-			foldRangesBySource.set(sourceStateKey, gtfoBuildFoldRanges(lines, sourceType));
-		var foldRanges = foldRangesBySource.get(sourceStateKey);
 		var foldedLines = foldedLinesBySource.get(foldStateKey) || new Set();
 		var selectedSourceLines = selectedSourceLinesBySource.get(sourceStateKey) || new Set();
-		var lineNumberWidth = String(lines.length).length;
 		var previousScrollTop = sourcePanel.scrollTop;
 		var previousScrollLeft = sourcePanel.scrollLeft;
+
+		sourceTitle.textContent = `${group.title} [processing]`;
+		gtfoClearElement(sourceCode);
+		sourceCode.textContent = 'Analyzing source in worker...';
+
+		var analysis = await gtfoAnalyzeSourceInWorker(rawSource, sourceType, prettifySource, selectedComments, scrollComment);
+		if (activeGroup != group)
+			return;
+
+		sourceTextBySource.set(sourceStateKey, analysis.source);
+		sourceLinesBySource.set(sourceStateKey, analysis.lines);
+		highlightedLinesBySource.set(sourceStateKey, analysis.highlightedLines);
+		foldRangesBySource.set(sourceStateKey, new Map(analysis.foldRanges || []));
+
+		var source = sourceTextBySource.get(sourceStateKey);
+		var lines = sourceLinesBySource.get(sourceStateKey);
+		var highlightedLines = highlightedLinesBySource.get(sourceStateKey);
+		var selectedLineIndexes = new Set(analysis.selectedLineIndexes || []);
+		var scrollRange = analysis.scrollRange || null;
+		var foldRanges = foldRangesBySource.get(sourceStateKey);
+		var lineNumberWidth = String(lines.length).length;
 
 		if (scrollRange) {
 			for (let [foldStart, foldEnd] of foldRanges) {
@@ -2229,11 +2329,7 @@ function gtfoBuildImages(data) {
 				console.warn('GTFO could not read image dimensions from blob.', error);
 			}
 		}
-		var hashes = await Promise.all([
-			gtfoMd5Blob(blob),
-			gtfoHashBlob(blob, 'SHA-1'),
-			gtfoHashBlob(blob, 'SHA-256')
-		]);
+		var hashes = await gtfoHashBlobInWorker(blob);
 		var downloadName = gtfoBuildImageDownloadName(host, imageInfo);
 		var type = blob.type || `image/${gtfoGetImageType(imageInfo.image)}`;
 		var headers = imageInfo.headers || {};
@@ -2251,9 +2347,9 @@ function gtfoBuildImages(data) {
 			`Last-Modified: ${headers.lastModified || 'unknown'}`,
 			`Cache-Control: ${headers.cacheControl || 'unknown'}`,
 			`ETag: ${headers.etag || 'unknown'}`,
-			`MD5: ${hashes[0]}`,
-			`SHA-1: ${hashes[1]}`,
-			`SHA-256: ${hashes[2]}`
+			`MD5: ${hashes.md5}`,
+			`SHA-1: ${hashes.sha1}`,
+			`SHA-256: ${hashes.sha256}`
 		].join('\n');
 	}
 
@@ -2313,9 +2409,60 @@ function gtfoBuildImages(data) {
 	renderImages();
 }
 
-function gtfoRender(data) {
+function gtfoSetLoadingProgress(session) {
+	var loading = document.getElementById('gtfo-loading');
+	var progressBar = document.getElementById('gtfo-loading-progress');
+	var percent = document.getElementById('gtfo-loading-percent');
+	var lines = document.getElementById('gtfo-loading-lines');
+	if (!loading || !session)
+		return;
+
+	gtfoLatestSession = session;
+	var progress = Math.max(0, Math.min(100, Number(session.progress) || 0));
+	progressBar.style.width = `${progress}%`;
+	percent.textContent = `${Math.round(progress)}%`;
+	var outputLines = Array.isArray(session.lines) && session.lines.length > 0 ? session.lines : [session.line || 'Waiting for page scan'];
+	lines.textContent = outputLines.map((line) => `> ${line}`).join('\n');
+	lines.scrollTop = lines.scrollHeight;
+	gtfoUpdatePendingTabs(session);
+	loading.classList.toggle('gtfo-loading-active', progress < 100 || session.status == 'error');
+}
+
+function gtfoFinishLoading() {
+	var loading = document.getElementById('gtfo-loading');
+	var progressBar = document.getElementById('gtfo-loading-progress');
+	var percent = document.getElementById('gtfo-loading-percent');
+	if (progressBar)
+		progressBar.style.width = '100%';
+	if (percent)
+		percent.textContent = '100%';
+	if (loading)
+		setTimeout(() => loading.classList.remove('gtfo-loading-active'), 180);
+}
+
+function gtfoMergeReportData(currentData, nextData) {
+	if (!currentData)
+		return nextData;
+	if (!nextData)
+		return currentData;
+
+	return {
+		...currentData,
+		...nextData,
+		html: nextData.html || currentData.html,
+		comments: nextData.comments || currentData.comments,
+		js: Array.isArray(nextData.js) && nextData.js.length > 0 ? nextData.js : currentData.js,
+		css: Array.isArray(nextData.css) && nextData.css.length > 0 ? nextData.css : currentData.css,
+		urls: Array.isArray(nextData.urls) && nextData.urls.length > 0 ? nextData.urls : currentData.urls,
+		images: Array.isArray(nextData.images) && nextData.images.length > 0 ? nextData.images : currentData.images
+	};
+}
+
+function gtfoRender(data, preferredTab) {
 	var host = gtfoGetHost(data);
 	var pageUrl = gtfoGetPageUrl(data);
+	preferredTab = preferredTab || 'Urls';
+	gtfoCurrentReportData = data;
 
 	document.title = `GTFO: ${host}`;
 	gtfoCurrentPageUrl = pageUrl;
@@ -2323,15 +2470,23 @@ function gtfoRender(data) {
 
 	var builtTabs = new Set();
 	var tabBuilders = {
-		Page: () => gtfoBuildPage(data),
-		Urls: () => gtfoBuildUrls(data),
-		Sources: () => gtfoBuildComments(data),
-		Images: () => gtfoBuildImages(data)
+		Page: () => gtfoBuildPage(gtfoCurrentReportData),
+		Urls: () => gtfoBuildUrls(gtfoCurrentReportData),
+		Sources: () => gtfoBuildComments(gtfoCurrentReportData),
+		Images: () => gtfoBuildImages(gtfoCurrentReportData)
 	};
 
 	function ensureTabBuilt(tabName) {
 		if (builtTabs.has(tabName) || !tabBuilders[tabName])
 			return;
+		if (!gtfoTabHasRequiredData(gtfoCurrentReportData, tabName)) {
+			gtfoShowPendingTab(tabName, gtfoLatestSession);
+			return;
+		}
+		if (document.getElementById(tabName).hasChildNodes()) {
+			builtTabs.add(tabName);
+			return;
+		}
 
 		tabBuilders[tabName]();
 		builtTabs.add(tabName);
@@ -2344,13 +2499,192 @@ function gtfoRender(data) {
 		});
 	});
 
-	ensureTabBuilt('Urls');
-	gtfoSwitchTab('Urls');
+	ensureTabBuilt(preferredTab);
+	gtfoSwitchTab(preferredTab);
+	gtfoFinishLoading();
+
+	if (data.partial)
+		return;
+
+	['Urls', 'Sources', 'Images', 'Page'].forEach((tabName, index) => {
+		if (tabName == preferredTab)
+			return;
+
+		setTimeout(() => ensureTabBuilt(tabName), 150 + (index * 180));
+	});
 }
 
-browser.storage.local.get('gtfo_grabber_data').then((result) => {
-	if (result.gtfo_grabber_data)
-		gtfoRender(result.gtfo_grabber_data);
-	else
+var gtfoHasRendered = false;
+var gtfoPreferredTab = 'Urls';
+var gtfoRenderedPartial = false;
+var gtfoPendingTabs = new Set();
+var gtfoLatestSession = null;
+
+function gtfoTabHasRequiredData(data, tabName) {
+	if (!data)
+		return false;
+
+	if (tabName == 'Urls')
+		return Array.isArray(data.urls);
+	if (tabName == 'Images')
+		return Array.isArray(data.images);
+	if (tabName == 'Sources')
+		return !!data.pageHtml || (Array.isArray(data.js) && data.js.length > 0) || (Array.isArray(data.css) && data.css.length > 0);
+	if (tabName == 'Page')
+		return !!data.pageHtml || !data.partial;
+
+	return true;
+}
+
+function gtfoShowPendingTab(tabName, session) {
+	var tab = document.getElementById(tabName);
+	if (!tab)
+		return;
+
+	gtfoPendingTabs.add(tabName);
+	gtfoClearElement(tab);
+
+	var wrapper = document.createElement('div');
+	wrapper.className = 'gtfo-tab-loading';
+
+	var inner = document.createElement('div');
+	inner.className = 'gtfo-tab-loading-inner';
+
+	var title = document.createElement('div');
+	title.className = 'gtfo-tab-loading-title';
+	title.textContent = `${tabName} data is still loading`;
+
+	var status = document.createElement('div');
+	status.className = 'gtfo-tab-loading-status';
+	status.textContent = gtfoFormatPendingStatus(session);
+
+	inner.appendChild(title);
+	inner.appendChild(status);
+	wrapper.appendChild(inner);
+	tab.appendChild(wrapper);
+}
+
+function gtfoUpdatePendingTabs(session) {
+	for (let tabName of gtfoPendingTabs) {
+		var tab = document.getElementById(tabName);
+		var status = tab && tab.querySelector('.gtfo-tab-loading-status');
+		if (status)
+			status.textContent = gtfoFormatPendingStatus(session);
+	}
+}
+
+function gtfoFormatPendingStatus(session) {
+	var progress = session && Number.isFinite(Number(session.progress)) ? `${Math.round(Number(session.progress))}%` : '--%';
+	var outputLines = session && Array.isArray(session.lines) && session.lines.length > 0 ? session.lines.slice(-6) : [(session && session.line) || 'Waiting for collection progress'];
+	return [`Progress: ${progress}`].concat(outputLines.map((line) => `> ${line}`)).join('\n');
+}
+
+function gtfoRefreshReportData(data, session) {
+	gtfoCurrentReportData = gtfoMergeReportData(gtfoCurrentReportData, data);
+	gtfoPreferredTab = (session && session.preferredTab) || gtfoPreferredTab || 'Urls';
+
+	if (!data || data.partial)
+		return;
+
+	if (gtfoRenderedPartial) {
+		['Urls', 'Sources', 'Images', 'Page'].forEach((tabName) => {
+			var tabElement = document.getElementById(tabName);
+			if (!tabElement || !tabElement.hasChildNodes())
+				return;
+
+			gtfoClearElement(tabElement);
+			gtfoRenderTab(tabName);
+			gtfoPendingTabs.delete(tabName);
+		});
+	}
+	gtfoRenderedPartial = false;
+
+	['Urls', 'Sources', 'Images', 'Page'].forEach((tabName, index) => {
+		setTimeout(() => {
+			if (!document.getElementById(tabName).hasChildNodes())
+				gtfoRenderTab(tabName);
+			gtfoPendingTabs.delete(tabName);
+		}, 150 + (index * 180));
+	});
+}
+
+function gtfoRenderTab(tabName) {
+	if (!gtfoCurrentReportData)
+		return;
+
+	if (tabName == 'Page')
+		gtfoBuildPage(gtfoCurrentReportData);
+	else if (tabName == 'Urls')
+		gtfoBuildUrls(gtfoCurrentReportData);
+	else if (tabName == 'Sources')
+		gtfoBuildComments(gtfoCurrentReportData);
+	else if (tabName == 'Images')
+		gtfoBuildImages(gtfoCurrentReportData);
+
+	gtfoPendingTabs.delete(tabName);
+}
+
+async function gtfoTryRenderSession(session) {
+	if (!session || gtfoHasRendered)
+		return false;
+
+	gtfoSetLoadingProgress(session);
+	if (session.data || session.dataReady) {
+		var data = session.data;
+		if (!data) {
+			var result = await browser.storage.local.get('gtfo_grabber_data');
+			data = result.gtfo_grabber_data;
+		}
+
+		if (!data)
+			return false;
+
+		gtfoCurrentReportData = gtfoMergeReportData(gtfoCurrentReportData, data);
+		gtfoHasRendered = true;
+		gtfoPreferredTab = session.preferredTab || 'Urls';
+		gtfoRenderedPartial = !!data.partial;
+		session.progress = data.partial ? session.progress : 100;
+		gtfoSetLoadingProgress(session);
+		gtfoRender(gtfoCurrentReportData, gtfoPreferredTab);
+		return true;
+	}
+
+	return false;
+}
+
+browser.storage.onChanged.addListener((changes, areaName) => {
+	if (areaName != 'local' || !changes.gtfo_grabber_session)
+		return;
+
+	gtfoTryRenderSession(changes.gtfo_grabber_session.newValue);
+});
+
+browser.storage.onChanged.addListener((changes, areaName) => {
+	if (areaName != 'local' || !changes.gtfo_grabber_data || !gtfoHasRendered)
+		return;
+
+	var nextData = changes.gtfo_grabber_data.newValue;
+	gtfoCurrentReportData = gtfoMergeReportData(gtfoCurrentReportData, nextData);
+	if (nextData && !nextData.partial)
+		gtfoRefreshReportData(nextData, null);
+});
+
+browser.storage.local.get(['gtfo_grabber_session', 'gtfo_grabber_data']).then(async (result) => {
+	if (await gtfoTryRenderSession(result.gtfo_grabber_session))
+		return;
+
+	if (result.gtfo_grabber_session && result.gtfo_grabber_session.status == 'loading')
+		return;
+
+	if (result.gtfo_grabber_data) {
+		gtfoHasRendered = true;
+		gtfoRender(result.gtfo_grabber_data, 'Urls');
+	}
+	else {
+		gtfoSetLoadingProgress({
+			progress: 0,
+			lines: ['no active grabber session found']
+		});
 		document.getElementById('gtfo-report-meta').textContent = 'No GTFO data found.';
+	}
 });
