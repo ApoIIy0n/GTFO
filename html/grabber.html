@@ -382,13 +382,34 @@
 			background: #202020;
 		}
 
-		#gtfo-source-search-controls select,
 		#gtfo-source-search-controls input {
 			background: #111;
 			color: white;
 			border: 1px solid #555;
 			font: 12px Consolas, monospace;
-			padding: 3px 6px;
+			padding: 1px 6px;
+		}
+
+		#gtfo-source-search-controls input:focus {
+			outline: 0;
+			border-color: red;
+		}
+
+		.gtfo-selection-toggle::after {
+			content: "v";
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			align-self: stretch;
+			width: 22px;
+			margin: -3px -10px -3px 8px;
+			border-left: 1px solid #777;
+		}
+
+		.gtfo-selection-toggle:hover::after,
+		.gtfo-selection-toggle:focus-visible::after,
+		.gtfo-selection-dropdown-open .gtfo-selection-toggle::after {
+			border-left-color: red;
 		}
 
 		#gtfo-source-search-regex,
@@ -444,23 +465,52 @@
 			margin-bottom: 8px;
 		}
 
+		.gtfo-search-file-header {
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			margin-bottom: 3px;
+			min-width: 0;
+		}
+
 		.gtfo-search-file-title {
 			display: block;
-			width: 100%;
+			flex: 0 1 auto;
+			min-width: 0;
 			border: 0;
 			background: transparent;
 			color: #ff3d3d;
 			font: 12px Consolas, monospace;
-			margin-bottom: 3px;
 			padding: 2px 4px;
 			text-align: left;
 			cursor: pointer;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
 		}
 
 		.gtfo-search-file-title:hover,
 		.gtfo-search-file-title-selected {
 			background: #333;
 			color: #ff3d3d;
+		}
+
+		.gtfo-search-file-collapse {
+			flex: 0 0 auto;
+			border: 0;
+			background: transparent;
+			color: #ff3d3d;
+			font: 12px Consolas, monospace;
+			padding: 2px 4px;
+			cursor: pointer;
+		}
+
+		.gtfo-search-file-collapse:hover {
+			background: #333;
+		}
+
+		.gtfo-search-file-collapsed .gtfo-search-file-results {
+			display: none;
 		}
 
 		.gtfo-search-result {
@@ -563,6 +613,14 @@
 			white-space: nowrap;
 		}
 
+		.gtfo-selection-toggle {
+			display: inline-flex;
+			align-items: center;
+			justify-content: space-between;
+			text-align: left;
+			padding-right: 10px;
+		}
+
 		.gtfo-source-action:hover,
 		.gtfo-source-action:focus-visible,
 		#gtfo-prettify-source.gtfo-prettify-active,
@@ -573,10 +631,6 @@
 
 		.gtfo-selection-dropdown {
 			position: relative;
-		}
-
-		#gtfo-selection-export-toggle::after {
-			content: " v";
 		}
 
 		.gtfo-selection-menu {

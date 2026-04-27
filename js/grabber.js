@@ -886,6 +886,37 @@ function gtfoCreateUrlRow(url, index, total) {
 	return row;
 }
 
+function gtfoCreateDropdown(id, toggleId, options, defaultValue) {
+	var dropdown = document.createElement('div');
+	dropdown.id = id;
+	dropdown.className = 'gtfo-selection-dropdown';
+	dropdown.dataset.value = defaultValue;
+
+	var selectedOption = options.find((option) => option.value == defaultValue) || options[0];
+	var longestLabel = options.reduce((longest, option) => option.label.length > longest.length ? option.label : longest, '');
+
+	var toggle = document.createElement('button');
+	toggle.type = 'button';
+	toggle.id = toggleId;
+	toggle.className = 'gtfo-source-action gtfo-selection-toggle';
+	toggle.textContent = selectedOption ? selectedOption.label : '';
+	toggle.style.width = `${Math.max(8, longestLabel.length + 6)}ch`;
+
+	var menu = document.createElement('div');
+	menu.className = 'gtfo-selection-menu';
+	for (let optionData of options) {
+		var option = document.createElement('button');
+		option.type = 'button';
+		option.value = optionData.value;
+		option.textContent = optionData.label;
+		menu.appendChild(option);
+	}
+
+	dropdown.appendChild(toggle);
+	dropdown.appendChild(menu);
+	return dropdown;
+}
+
 function gtfoCreateCommentLayout() {
 	var layout = document.createElement('div');
 	layout.id = 'gtfo-comments-layout';
@@ -912,32 +943,13 @@ function gtfoCreateCommentLayout() {
 	prettifyButton.textContent = 'Prettify';
 	sourceActions.appendChild(prettifyButton);
 
-	var selectionMode = document.createElement('div');
-	selectionMode.id = 'gtfo-selection-export-mode';
-	selectionMode.className = 'gtfo-selection-dropdown';
-	selectionMode.dataset.value = 'all';
-	var selectionToggle = document.createElement('button');
-	selectionToggle.type = 'button';
-	selectionToggle.id = 'gtfo-selection-export-toggle';
-	selectionToggle.className = 'gtfo-source-action';
-	selectionToggle.textContent = 'All selected';
-	var selectionMenu = document.createElement('div');
-	selectionMenu.className = 'gtfo-selection-menu';
-	[
+	var selectionMode = gtfoCreateDropdown('gtfo-selection-export-mode', 'gtfo-selection-export-toggle', [
 		{ value: 'all', label: 'All selected' },
 		{ value: 'red', label: 'Red' },
 		{ value: 'green', label: 'Green' },
 		{ value: 'orange', label: 'Orange' },
 		{ value: 'cyan', label: 'Cyan' }
-	].forEach((optionData) => {
-		var option = document.createElement('button');
-		option.type = 'button';
-		option.value = optionData.value;
-		option.textContent = optionData.label;
-		selectionMenu.appendChild(option);
-	});
-	selectionMode.appendChild(selectionToggle);
-	selectionMode.appendChild(selectionMenu);
+	], 'all');
 	sourceActions.appendChild(selectionMode);
 
 	var copySelectionsButton = document.createElement('button');
@@ -993,20 +1005,13 @@ function gtfoCreateCommentLayout() {
 	searchControls.id = 'gtfo-source-search-controls';
 	var searchLabel = document.createElement('label');
 	searchLabel.textContent = 'Search:';
-	var searchScope = document.createElement('select');
-	searchScope.id = 'gtfo-source-search-scope';
-	[
+	var searchScope = gtfoCreateDropdown('gtfo-source-search-scope', 'gtfo-source-search-scope-toggle', [
 		{ value: 'current', label: 'Current source' },
 		{ value: 'all', label: 'All' },
 		{ value: 'html', label: 'HTML' },
 		{ value: 'javascript', label: 'JS' },
 		{ value: 'css', label: 'CSS' }
-	].forEach((optionData) => {
-		var option = document.createElement('option');
-		option.value = optionData.value;
-		option.textContent = optionData.label;
-		searchScope.appendChild(option);
-	});
+	], 'current');
 
 	var searchInput = document.createElement('input');
 	searchInput.id = 'gtfo-source-search-input';
@@ -1546,6 +1551,7 @@ function gtfoBuildComments(data) {
 	var sourceMarkerResizeFrame = null;
 	var sourceResizeObserver = null;
 	var pendingSearchScrollLineIndex = null;
+	var pendingSearchResultKey = null;
 	var sourceNodeByGroup = new WeakMap();
 
 	gtfoClearElement(comments);
@@ -1556,10 +1562,13 @@ function gtfoBuildComments(data) {
 	document.getElementById('gtfo-prettify-source').addEventListener('click', async (event) => {
 		prettifySource = !prettifySource;
 		document.getElementById('gtfo-prettify-source').classList.toggle('gtfo-prettify-active', prettifySource);
+		if (activeGroup && searchInput.value.trim()) {
+			var activeSelectedResult = currentSearchResults.find((result) => result.group == activeGroup && selectedSearchResultKeys.has(result.key));
+			pendingSearchResultKey = activeSelectedResult ? activeSelectedResult.key : null;
+			gtfoRunSourceSearch(true);
+		}
 		if (activeGroup)
 			await renderSource(activeGroup, gtfoGetSelectedCommentsForGroup(activeGroup), false);
-		if (searchInput && searchInput.value.trim())
-			gtfoRunSourceSearch();
 	});
 	document.addEventListener('mouseup', () => {
 		isSelectingSourceLines = false;
@@ -1734,6 +1743,11 @@ function gtfoBuildComments(data) {
 		});
 	});
 	document.addEventListener('click', () => selectionDropdown.classList.remove('gtfo-selection-dropdown-open'));
+	document.addEventListener('click', () => {
+		var searchScope = document.getElementById('gtfo-source-search-scope');
+		if (searchScope)
+			searchScope.classList.remove('gtfo-selection-dropdown-open');
+	});
 
 	document.getElementById('gtfo-copy-source-selections').addEventListener('click', () => {
 		var mode = gtfoGetSelectionExportMode();
@@ -1745,6 +1759,7 @@ function gtfoBuildComments(data) {
 	});
 
 	var searchScopeInput = document.getElementById('gtfo-source-search-scope');
+	var searchScopeToggle = document.getElementById('gtfo-source-search-scope-toggle');
 	var searchInput = document.getElementById('gtfo-source-search-input');
 	var searchRegexInput = document.getElementById('gtfo-source-search-regex');
 	var searchRegexToggle = document.getElementById('gtfo-source-search-regex-toggle');
@@ -1758,6 +1773,7 @@ function gtfoBuildComments(data) {
 	var currentSearchResults = [];
 	var selectedSearchResultKeys = new Set();
 	var selectedSearchRangesByGroup = new WeakMap();
+	var collapsedSearchGroupKeys = new Set();
 
 	function gtfoScheduleSearch() {
 		clearTimeout(searchTimer);
@@ -1776,7 +1792,19 @@ function gtfoBuildComments(data) {
 		searchSelectAllToggle.classList.toggle('gtfo-search-toggle-active', searchSelectAllInput.checked);
 	}
 
-	searchScopeInput.addEventListener('change', gtfoRunSourceSearch);
+	searchScopeToggle.addEventListener('click', (event) => {
+		event.stopPropagation();
+		searchScopeInput.classList.toggle('gtfo-selection-dropdown-open');
+	});
+	searchScopeInput.querySelectorAll('.gtfo-selection-menu button').forEach((option) => {
+		option.addEventListener('click', (event) => {
+			event.stopPropagation();
+			searchScopeInput.dataset.value = option.value;
+			searchScopeToggle.textContent = option.textContent;
+			searchScopeInput.classList.remove('gtfo-selection-dropdown-open');
+			gtfoRunSourceSearch();
+		});
+	});
 	searchInput.addEventListener('input', gtfoScheduleSearch);
 	searchRegexToggle.addEventListener('click', (event) => {
 		event.preventDefault();
@@ -2109,21 +2137,22 @@ function gtfoBuildComments(data) {
 		updateSourceMarkers();
 	}
 
-	function setActiveGroup(node, group) {
+	async function setActiveGroup(node, group) {
 		document.querySelectorAll('.gtfo-tree-node-active').forEach((item) => item.classList.remove('gtfo-tree-node-active'));
 		node.classList.add('gtfo-tree-node-active');
 		activeGroup = group;
-		renderSource(group, gtfoGetSelectedCommentsForGroup(group));
-		if (searchScopeInput.value == 'current' && searchInput.value.trim())
-			gtfoRunSourceSearch();
+		if (searchInput.value.trim())
+			gtfoRunSourceSearch(true);
+		await renderSource(group, gtfoGetSelectedCommentsForGroup(group));
 	}
 
-	function gtfoJumpToSearchResult(group, lineIndex) {
+	function gtfoJumpToSearchResult(group, lineIndex, resultKey) {
 		var sourceNode = sourceNodeByGroup.get(group);
 		if (!sourceNode)
 			return;
 
-		pendingSearchScrollLineIndex = lineIndex;
+		pendingSearchScrollLineIndex = resultKey ? null : lineIndex;
+		pendingSearchResultKey = resultKey || null;
 		setActiveGroup(sourceNode, group);
 	}
 
@@ -2166,7 +2195,7 @@ function gtfoBuildComments(data) {
 	}
 
 	function gtfoGetSearchGroups() {
-		var scope = searchScopeInput.value;
+		var scope = searchScopeInput.dataset.value || 'current';
 		if (scope == 'current')
 			return activeGroup ? [activeGroup] : [];
 
@@ -2205,11 +2234,13 @@ function gtfoBuildComments(data) {
 	function gtfoGetGroupSourceLines(group) {
 		var sourceStateKey = gtfoGetSourceStateKey(group);
 		var source = sourceTextBySource.get(sourceStateKey);
-		if (typeof source != 'string') {
+		if (typeof source != 'string' && prettifySource) {
 			var rawSource = group.source || '';
-			source = prettifySource ? gtfoFormatSource(rawSource, gtfoGetSourceType(group)) : rawSource;
+			source = gtfoFormatSource(rawSource, gtfoGetSourceType(group));
 			sourceTextBySource.set(sourceStateKey, source);
 		}
+		if (typeof source != 'string')
+			source = group.source || '';
 		return String(source || '').split(/\r?\n/);
 	}
 
@@ -2232,8 +2263,12 @@ function gtfoBuildComments(data) {
 		});
 	}
 
-	function gtfoBuildSearchResultKey(group, lineIndex, matchIndex) {
-		return `${group.title}::${group.url || group.displayName || ''}::${lineIndex}::${matchIndex}`;
+	function gtfoBuildSearchResultKey(group, text, occurrenceIndex) {
+		return `${gtfoBuildSearchGroupKey(group)}::${text}::${occurrenceIndex}`;
+	}
+
+	function gtfoBuildSearchGroupKey(group) {
+		return `${group.title}::${group.url || group.displayName || ''}`;
 	}
 
 	function gtfoGetSelectedSearchResults() {
@@ -2317,6 +2352,10 @@ function gtfoBuildComments(data) {
 		searchSelectAllInput.checked = currentSearchResults.length > 0 && currentSearchResults.every((result) => selectedSearchResultKeys.has(result.key));
 		gtfoUpdateSearchSelectAllToggle();
 
+		searchResults.querySelectorAll('.gtfo-search-file-title').forEach((button) => {
+			button.classList.toggle('gtfo-search-file-title-selected', button.gtfoGroup == activeGroup);
+		});
+
 		searchResults.querySelectorAll('.gtfo-search-result').forEach((button) => {
 			var keys = String(button.dataset.searchKeys || '').split('\n').filter((key) => key);
 			button.classList.toggle('gtfo-search-result-selected', keys.length > 0 && keys.every((key) => selectedSearchResultKeys.has(key)));
@@ -2325,9 +2364,7 @@ function gtfoBuildComments(data) {
 		if (skipSourceRender)
 			return;
 
-		if (activeGroup)
-			renderSource(activeGroup, gtfoGetSelectedCommentsForGroup(activeGroup), true);
-		else if (updateActiveSourceMarkers)
+		if (updateActiveSourceMarkers)
 			scheduleSourceMarkerUpdate();
 	}
 
@@ -2359,7 +2396,7 @@ function gtfoBuildComments(data) {
 
 	function gtfoOpenSearchResultGroup(group, results) {
 		if (results && results.length > 0)
-			gtfoJumpToSearchResult(group, results[0].lineIndex);
+			gtfoJumpToSearchResult(group, results[0].lineIndex, results[0].key);
 		else {
 			var sourceNode = sourceNodeByGroup.get(group);
 			if (sourceNode)
@@ -2367,11 +2404,14 @@ function gtfoBuildComments(data) {
 		}
 	}
 
-	function gtfoRunSourceSearch() {
+	function gtfoRunSourceSearch(preserveSelections) {
 		var query = searchInput.value.trim();
+		var previousSelectedKeys = preserveSelections ? new Set(selectedSearchResultKeys) : null;
+		var previousResultsScrollTop = searchResults.scrollTop;
 		gtfoClearElement(searchResults);
 		currentSearchResults = [];
-		selectedSearchResultKeys.clear();
+		if (!preserveSelections)
+			selectedSearchResultKeys.clear();
 		selectedSearchRangesByGroup = new WeakMap();
 
 		if (!query) {
@@ -2401,6 +2441,7 @@ function gtfoBuildComments(data) {
 		for (let group of searchGroups) {
 			var lines = gtfoGetGroupSourceLines(group);
 			var groupMatches = [];
+			var matchOccurrenceByText = new Map();
 
 			for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
 				var line = String(lines[lineIndex] || '');
@@ -2413,8 +2454,10 @@ function gtfoBuildComments(data) {
 					var text = match[0] || '';
 					var start = Number.isFinite(match.index) ? match.index : line.indexOf(text);
 					var end = start + text.length;
+					var occurrenceIndex = matchOccurrenceByText.get(text) || 0;
+					matchOccurrenceByText.set(text, occurrenceIndex + 1);
 					return {
-						key: gtfoBuildSearchResultKey(group, lineIndex, matchIndex),
+						key: gtfoBuildSearchResultKey(group, text, occurrenceIndex),
 						group: group,
 						lineIndex: lineIndex,
 						start: start,
@@ -2435,24 +2478,56 @@ function gtfoBuildComments(data) {
 				continue;
 
 			matchedFiles++;
-			var fileNode = document.createElement('div');
+			let fileNode = document.createElement('div');
 			fileNode.className = 'gtfo-search-file';
-			var fileTitle = document.createElement('button');
+			let groupKey = gtfoBuildSearchGroupKey(group);
+			let isCollapsed = collapsedSearchGroupKeys.has(groupKey);
+			fileNode.classList.toggle('gtfo-search-file-collapsed', isCollapsed);
+			let fileHeader = document.createElement('div');
+			fileHeader.className = 'gtfo-search-file-header';
+			let fileTitle = document.createElement('button');
 			fileTitle.type = 'button';
 			fileTitle.className = 'gtfo-search-file-title';
+			fileTitle.gtfoGroup = group;
 			fileTitle.textContent = `${group.displayName || group.title} [${gtfoPlural(groupMatches.reduce((total, item) => total + item.count, 0), 'match', 'matches')}]`;
-			var groupResultMatches = groupMatches.flatMap((item) => item.matches);
+			let groupResultMatches = groupMatches.flatMap((item) => item.matches);
 			fileTitle.addEventListener('click', () => gtfoOpenSearchResultGroup(group, groupResultMatches));
-			fileNode.appendChild(fileTitle);
+			fileHeader.appendChild(fileTitle);
+
+			let collapseButton = document.createElement('button');
+			collapseButton.type = 'button';
+			collapseButton.className = 'gtfo-search-file-collapse';
+			collapseButton.textContent = isCollapsed ? '[+]' : '[-]';
+			collapseButton.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+			collapseButton.title = isCollapsed ? 'Expand results' : 'Collapse results';
+			collapseButton.addEventListener('click', (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				let nextCollapsed = !fileNode.classList.contains('gtfo-search-file-collapsed');
+				fileNode.classList.toggle('gtfo-search-file-collapsed', nextCollapsed);
+				collapseButton.textContent = nextCollapsed ? '[+]' : '[-]';
+				collapseButton.setAttribute('aria-expanded', nextCollapsed ? 'false' : 'true');
+				collapseButton.title = nextCollapsed ? 'Expand results' : 'Collapse results';
+				if (nextCollapsed)
+					collapsedSearchGroupKeys.add(groupKey);
+				else
+					collapsedSearchGroupKeys.delete(groupKey);
+			});
+			fileHeader.appendChild(collapseButton);
+			fileNode.appendChild(fileHeader);
+
+			let fileResults = document.createElement('div');
+			fileResults.className = 'gtfo-search-file-results';
 
 			for (let result of groupMatches) {
 				var button = document.createElement('button');
 				button.type = 'button';
 				button.className = 'gtfo-search-result';
+				button.gtfoGroup = group;
 				button.dataset.searchKeys = result.matches.map((match) => match.key).join('\n');
 				button.addEventListener('click', (event) => {
 					gtfoToggleSearchResultSet(result.matches, event.altKey || event.getModifierState('Alt'), true);
-					gtfoJumpToSearchResult(group, result.lineIndex);
+					gtfoJumpToSearchResult(group, result.lineIndex, result.matches[0] && result.matches[0].key);
 				});
 
 				var lineNumber = document.createElement('span');
@@ -2464,19 +2539,32 @@ function gtfoBuildComments(data) {
 
 				button.appendChild(lineNumber);
 				button.appendChild(preview);
-				fileNode.appendChild(button);
+				fileResults.appendChild(button);
 			}
 
+			fileNode.appendChild(fileResults);
 			resultFragment.appendChild(fileNode);
 		}
 
 		searchSummary.textContent = `${gtfoPlural(totalMatches, 'result', 'results')} in ${gtfoPlural(matchedFiles, 'source', 'sources')}`;
 		searchResults.appendChild(resultFragment);
-		if (searchSelectAllInput.checked) {
+		if (preserveSelections && previousSelectedKeys) {
+			selectedSearchResultKeys = new Set(currentSearchResults
+				.filter((result) => previousSelectedKeys.has(result.key))
+				.map((result) => result.key));
+		}
+		else if (searchSelectAllInput.checked) {
 			for (let result of currentSearchResults)
 				selectedSearchResultKeys.add(result.key);
 		}
+		if (pendingSearchResultKey && activeGroup) {
+			var recalculatedTarget = currentSearchResults.find((result) => result.group == activeGroup && result.key == pendingSearchResultKey);
+			if (recalculatedTarget)
+				pendingSearchScrollLineIndex = recalculatedTarget.lineIndex;
+			pendingSearchResultKey = null;
+		}
 		gtfoRefreshSearchSelections();
+		searchResults.scrollTop = previousResultsScrollTop;
 	}
 
 	function createTreeNode(label, options) {
