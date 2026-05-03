@@ -2399,17 +2399,38 @@ function gtfoBuildComments(data) {
 		var button = document.createElement('button');
 		button.type = 'button';
 		button.className = 'gtfo-tree-label';
-		button.textContent = label;
+
+		var labelText = document.createElement('span');
+		labelText.className = 'gtfo-tree-label-text';
+		labelText.textContent = label;
 		node.appendChild(button);
 
 		if (options.children) {
+			var toggleMarker = document.createElement('span');
+			toggleMarker.className = 'gtfo-tree-toggle-marker';
+			toggleMarker.setAttribute('aria-hidden', 'true');
+			var toggleChevron = document.createElement('span');
+			toggleChevron.className = 'gtfo-tree-toggle-chevron';
+			toggleChevron.setAttribute('aria-hidden', 'true');
+			var toggleNode = (event) => {
+				event.stopPropagation();
+				node.classList.toggle('gtfo-tree-collapsed');
+			};
+
 			button.classList.add('gtfo-tree-toggle');
+			button.appendChild(toggleMarker);
+			button.appendChild(labelText);
+			button.appendChild(toggleChevron);
 			node.appendChild(options.children);
-			button.addEventListener('click', () => node.classList.toggle('gtfo-tree-collapsed'));
+			toggleMarker.addEventListener('click', toggleNode);
+			toggleChevron.addEventListener('click', toggleNode);
 		}
-		else if (options.onClick) {
+
+		if (!options.children)
+			button.appendChild(labelText);
+
+		if (options.onClick)
 			button.addEventListener('click', options.onClick);
-		}
 
 		return node;
 	}
@@ -2444,7 +2465,8 @@ function gtfoBuildComments(data) {
 
 		var sourceNode = createTreeNode(label, hasComments ? {
 			children: commentList,
-			collapsed: true
+			collapsed: true,
+			onClick: () => setActiveGroup(sourceNode, group)
 		} : {
 			onClick: () => setActiveGroup(sourceNode, group)
 		});
@@ -2453,11 +2475,6 @@ function gtfoBuildComments(data) {
 		sourceNode.gtfoGroup = group;
 		sourceNodeByGroup.set(group, sourceNode);
 		if (hasComments) {
-			sourceNode.querySelector(':scope > .gtfo-tree-label').addEventListener('click', (event) => {
-				if (event.target == sourceNode.querySelector(':scope > .gtfo-tree-label'))
-					setActiveGroup(sourceNode, group);
-			});
-
 			for (let comment of group.comments)
 				commentList.appendChild(createCommentNode(comment, sourceNode, group));
 		}
