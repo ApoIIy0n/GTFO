@@ -37,6 +37,7 @@ async function gtfoStartGrabber(request) {
 		await browser.tabs.executeScript(request.tabId, { file: '/js/content.js', allFrames: false });
 	}
 
+	await browser.tabs.executeScript(request.tabId, { file: '/js/comment-parser.js', allFrames: false });
 	await gtfoSetGrabberProgress(session, 20, 'Collecting page data');
 	var response = await browser.tabs.sendMessage(request.tabId, {
 		type: 'gtfo_grabber',

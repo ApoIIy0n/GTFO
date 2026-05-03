@@ -36,6 +36,9 @@ async function sendTabMessage(subject, value) {
 			await browser.tabs.executeScript(tab.id, { file: '/js/content.js', allFrames: false });
 		}
 
+		if (subject == 'gtfo_grabber')
+			await browser.tabs.executeScript(tab.id, { file: '/js/comment-parser.js', allFrames: false });
+
 		var response = await browser.tabs.sendMessage(tab.id, { type: subject, params: value });
 		if (subject == 'gtfo_grabber' && response && response.data)
 			await openGrabberReport(response.data);
