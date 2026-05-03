@@ -1,2 +1,6 @@
 notes
 releases
+node_modules
+tools
+package-lock.json
+package.json

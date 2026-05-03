@@ -1162,9 +1162,7 @@ function gtfoCreateImagesLayout() {
 	]);
 	appendContextSubmenu(contextMenu, 'Copy', [
 		{ id: 'copy-file', text: 'File' },
-		{ separator: true },
 		{ id: 'copy-location', text: 'Location' },
-		{ separator: true },
 		{ id: 'copy-base64', text: 'Base64' }
 	]);
 	appendContextItem(contextMenu, { id: 'inspect', text: 'Inspect' });
