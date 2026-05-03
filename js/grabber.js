@@ -443,7 +443,8 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 	var stringReturnState = 'code';
 	var regexReturnState = 'code';
 	var regexInCharacterClass = false;
-	var templateExpressionDepth = 0;
+	var templateReturnStates = [];
+	var templateExpressionStack = [];
 	var blockStartLine = 0;
 	var blockText = '';
 
@@ -491,8 +492,31 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 		state = 'regex';
 	}
 
+	function enterTemplate(returnState) {
+		templateReturnStates.push(returnState);
+		state = 'template';
+	}
+
+	function enterTemplateExpression() {
+		templateExpressionStack.push(1);
+		state = 'template-expression';
+	}
+
+	function incrementTemplateExpressionDepth() {
+		templateExpressionStack[templateExpressionStack.length - 1]++;
+	}
+
+	function decrementTemplateExpressionDepth() {
+		var depth = templateExpressionStack.pop() - 1;
+		if (depth > 0) {
+			templateExpressionStack.push(depth);
+			return;
+		}
+		state = 'template';
+	}
+
 	function returnToCodeState() {
-		return sourceType == 'javascript' && templateExpressionDepth > 0 ? 'template-expression' : 'code';
+		return sourceType == 'javascript' && templateExpressionStack.length > 0 ? 'template-expression' : 'code';
 	}
 
 	for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
@@ -511,7 +535,7 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 					state = character;
 				}
 				else if (sourceType == 'javascript' && character == '`')
-					state = 'template';
+					enterTemplate('code');
 				else if (sourceType == 'javascript' && character == '/' && nextCharacter == '/' && !isEscaped(line, index)) {
 					ranges.push({
 						start: lineIndex,
@@ -535,10 +559,9 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 			}
 			else if (state == 'template') {
 				if (character == '`' && !isEscaped(line, index))
-					state = 'code';
+					state = templateReturnStates.pop() || 'code';
 				else if (character == '$' && nextCharacter == '{' && !isEscaped(line, index)) {
-					templateExpressionDepth = 1;
-					state = 'template-expression';
+					enterTemplateExpression();
 					index++;
 				}
 			}
@@ -548,13 +571,11 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 					state = character;
 				}
 				else if (character == '`')
-					state = 'template';
+					enterTemplate('template-expression');
 				else if (character == '{')
-					templateExpressionDepth++;
+					incrementTemplateExpressionDepth();
 				else if (character == '}') {
-					templateExpressionDepth--;
-					if (templateExpressionDepth <= 0)
-						state = 'template';
+					decrementTemplateExpressionDepth();
 				}
 				else if (character == '/' && nextCharacter == '/' && !isEscaped(line, index)) {
 					ranges.push({
@@ -2719,6 +2740,8 @@ function gtfoBuildComments(data) {
 		options = options || {};
 		var node = document.createElement('li');
 		node.className = 'gtfo-source-tree-node';
+		if (options.className)
+			node.classList.add(...options.className.split(/\s+/).filter(Boolean));
 		if (options.collapsed)
 			node.classList.add('gtfo-tree-collapsed');
 		var button = document.createElement('button');
@@ -2741,6 +2764,7 @@ function gtfoBuildComments(data) {
 
 	function createCommentNode(comment, sourceNode, group) {
 		var item = document.createElement('li');
+		item.className = 'gtfo-comment-node';
 		item.textContent = comment;
 		item.gtfoGroup = group;
 		item.gtfoComment = comment;
@@ -2804,11 +2828,12 @@ function gtfoBuildComments(data) {
 		}
 
 		parentList.appendChild(createTreeNode(`${label} [${gtfoPlural(groupList.length, singular, plural)}, ${gtfoPlural(countGroupComments(groupList), 'comment', 'comments')}]`, {
+			className: 'gtfo-source-category-node',
 			children: categoryList
 		}));
 	}
 
-	function appendLanguageRoot(root, label, groupList, builder, singular, plural) {
+	function appendLanguageRoot(root, label, groupList, builder, singular, plural, rootClass) {
 		if (groupList.length == 0)
 			return;
 
@@ -2817,6 +2842,7 @@ function gtfoBuildComments(data) {
 		var languageList = document.createElement('ul');
 		builder(languageList, groupList);
 		root.appendChild(createTreeNode(`${label} [${gtfoPlural(groupList.length, singular, plural)}, ${gtfoPlural(countGroupComments(groupList), 'comment', 'comments')}]`, {
+			className: `gtfo-source-root-node ${rootClass || ''}`,
 			children: languageList
 		}));
 	}
@@ -2831,17 +2857,17 @@ function gtfoBuildComments(data) {
 		for (let group of groupList) {
 			languageList.appendChild(createSourceNode(group, `${group.displayName || 'Page'} [${gtfoPlural(group.comments.length, 'comment', 'comments')}]`));
 		}
-	});
+	}, null, null, 'gtfo-source-root-html');
 	appendLanguageRoot(tree, 'JavaScript', jsGroups, (languageList, groupList) => {
 		appendSourceCategory(languageList, 'Page Scripts', groupList.filter((group) => group.sourceScope == 'page'), 'script', 'scripts');
 		appendSourceCategory(languageList, 'Inline Scripts', groupList.filter((group) => group.sourceScope == 'inline'), 'script', 'scripts');
 		appendSourceCategory(languageList, 'Same-Origin Scripts', groupList.filter((group) => group.sourceScope == 'same-origin'), 'script', 'scripts');
 		appendSourceCategory(languageList, 'Third-Party Scripts', groupList.filter((group) => group.sourceScope == 'third-party'), 'script', 'scripts');
-	}, 'script', 'scripts');
+	}, 'script', 'scripts', 'gtfo-source-root-javascript');
 	appendLanguageRoot(tree, 'CSS', cssGroups, (languageList, groupList) => {
 		appendSourceCategory(languageList, 'Same-Origin Stylesheets', groupList.filter((group) => group.sourceScope != 'third-party'), 'stylesheet', 'stylesheets');
 		appendSourceCategory(languageList, 'Third-Party Stylesheets', groupList.filter((group) => group.sourceScope == 'third-party'), 'stylesheet', 'stylesheets');
-	}, 'stylesheet', 'stylesheets');
+	}, 'stylesheet', 'stylesheets', 'gtfo-source-root-css');
 
 	nav.appendChild(tree);
 

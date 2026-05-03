@@ -182,7 +182,8 @@ function gtfo_GetCommentsFromData(data) {
 	var stringReturnState = 'code';
 	var regexReturnState = 'code';
 	var regexInCharacterClass = false;
-	var templateExpressionDepth = 0;
+	var templateReturnStates = [];
+	var templateExpressionStack = [];
 	var blockCommentStart = 0;
 	var lineCommentStart = 0;
 
@@ -233,8 +234,31 @@ function gtfo_GetCommentsFromData(data) {
 		state = 'regex';
 	}
 
+	function enterTemplate(returnState) {
+		templateReturnStates.push(returnState);
+		state = 'template';
+	}
+
+	function enterTemplateExpression() {
+		templateExpressionStack.push(1);
+		state = 'template-expression';
+	}
+
+	function incrementTemplateExpressionDepth() {
+		templateExpressionStack[templateExpressionStack.length - 1]++;
+	}
+
+	function decrementTemplateExpressionDepth() {
+		var depth = templateExpressionStack.pop() - 1;
+		if (depth > 0) {
+			templateExpressionStack.push(depth);
+			return;
+		}
+		state = 'template';
+	}
+
 	function returnToCodeState() {
-		return templateExpressionDepth > 0 ? 'template-expression' : 'code';
+		return templateExpressionStack.length > 0 ? 'template-expression' : 'code';
 	}
 
 	for (let index = 0; index < source.length; index++) {
@@ -247,7 +271,7 @@ function gtfo_GetCommentsFromData(data) {
 				state = character;
 			}
 			else if (character == '`')
-				state = 'template';
+				enterTemplate('code');
 			else if (character == '/' && nextCharacter == '/' && !isEscaped(index)) {
 				lineCommentStart = index;
 				state = 'line-comment';
@@ -267,10 +291,9 @@ function gtfo_GetCommentsFromData(data) {
 		}
 		else if (state == 'template') {
 			if (character == '`' && !isEscaped(index))
-				state = 'code';
+				state = templateReturnStates.pop() || 'code';
 			else if (character == '$' && nextCharacter == '{' && !isEscaped(index)) {
-				templateExpressionDepth = 1;
-				state = 'template-expression';
+				enterTemplateExpression();
 				index++;
 			}
 		}
@@ -280,13 +303,11 @@ function gtfo_GetCommentsFromData(data) {
 				state = character;
 			}
 			else if (character == '`')
-				state = 'template';
+				enterTemplate('template-expression');
 			else if (character == '{')
-				templateExpressionDepth++;
+				incrementTemplateExpressionDepth();
 			else if (character == '}') {
-				templateExpressionDepth--;
-				if (templateExpressionDepth <= 0)
-					state = 'template';
+				decrementTemplateExpressionDepth();
 			}
 			else if (character == '/' && nextCharacter == '/' && !isEscaped(index)) {
 				lineCommentStart = index;

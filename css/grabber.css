@@ -298,43 +298,138 @@ a:hover {
 	margin: 0;
 	padding: 0;
 	list-style: none;
+	--gtfo-tree-color: #777;
 }
 
 .gtfo-source-tree ul {
-	margin: 2px 0 6px 16px;
-	padding: 0;
+	position: relative;
+	margin: 0;
+	padding: 0 0 0 20px;
 	list-style: none;
 }
 
-.gtfo-source-tree-node {
-	margin: 2px 0;
+.gtfo-source-tree ul::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	bottom: 10px;
+	left: 8px;
+	border-left: 1px solid var(--gtfo-tree-color);
+	opacity: 0.9;
+}
+
+.gtfo-source-tree-node,
+.gtfo-comment-node {
+	position: relative;
+	min-height: 20px;
+	margin: 0;
+	padding: 0;
+}
+
+.gtfo-source-tree ul > .gtfo-source-tree-node::before,
+.gtfo-comment-list > .gtfo-comment-node::before {
+	content: "";
+	position: absolute;
+	top: 10px;
+	left: -12px;
+	width: 12px;
+	border-top: 1px solid var(--gtfo-tree-color);
+	opacity: 0.9;
+}
+
+.gtfo-source-tree ul > .gtfo-source-tree-node::before {
+	width: 16px;
+}
+
+.gtfo-source-tree ul > .gtfo-source-tree-node:last-child::after,
+.gtfo-comment-list > .gtfo-comment-node:last-child::after {
+	content: "";
+	position: absolute;
+	top: 11px;
+	bottom: 0;
+	left: -12px;
+	border-left: 1px solid #313131;
+}
+
+.gtfo-source-root-node {
+	margin-bottom: 4px;
+	--gtfo-tree-color: #2aa8ff;
+}
+
+.gtfo-source-root-html {
+	--gtfo-tree-color: #2aa8ff;
+}
+
+.gtfo-source-root-javascript {
+	--gtfo-tree-color: #ff2a2a;
+}
+
+.gtfo-source-root-css {
+	--gtfo-tree-color: #28e65a;
+}
+
+.gtfo-source-category-node {
+	--gtfo-tree-color: inherit;
 }
 
 .gtfo-tree-label {
-	display: block;
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 6px;
 	width: 100%;
 	border: 0;
 	background: transparent;
 	color: white;
 	font: 12px Consolas, monospace;
-	padding: 2px 4px;
+	line-height: 18px;
+	padding: 1px 22px 1px 4px;
 	text-align: left;
 	white-space: nowrap;
 	cursor: pointer;
 }
 
-.gtfo-tree-label:hover,
+.gtfo-tree-label:hover {
+	color: var(--gtfo-tree-color);
+	background: #262626;
+}
+
 .gtfo-tree-node-active > .gtfo-tree-label {
-	color: red;
+	color: var(--gtfo-tree-color);
+	background: #262626;
 }
 
 .gtfo-tree-toggle::before {
-	content: "v ";
-	color: #aaa;
+	content: "-";
+	display: inline-grid;
+	place-items: center;
+	flex: 0 0 11px;
+	width: 11px;
+	height: 11px;
+	border: 1px solid var(--gtfo-tree-color);
+	color: var(--gtfo-tree-color);
+	background: #313131;
+	font: 11px/1 Consolas, monospace;
+	transform: none;
+	opacity: 0.95;
+}
+
+.gtfo-tree-toggle::after {
+	content: "▼";
+	position: absolute;
+	right: 6px;
+	color: var(--gtfo-tree-color);
+	font-size: 10px;
+	line-height: 1;
+	top: 5px;
 }
 
 .gtfo-tree-collapsed > .gtfo-tree-toggle::before {
-	content: "> ";
+	content: "+";
+}
+
+.gtfo-tree-collapsed > .gtfo-tree-toggle::after {
+	content: "▶";
 }
 
 .gtfo-tree-collapsed > ul {
@@ -716,21 +811,29 @@ a:hover {
 }
 
 .gtfo-comment-active {
-	background: #7a1f1f;
-	color: white;
-	outline: 1px solid red;
+	background: color-mix(in srgb, var(--gtfo-tree-color) 28%, #1a1a1a);
+	color: var(--gtfo-tree-color);
+	outline: 1px solid var(--gtfo-tree-color);
 }
 
 .gtfo-comment-list {
-	padding-left: 18px;
-	margin: 0 0 18px;
+	position: relative;
+	margin: 0;
+	padding: 0 0 0 20px;
+	list-style: none;
 }
 
 .gtfo-comment-list li {
 	cursor: pointer;
-	margin-bottom: 4px;
-	padding: 2px 4px;
+	margin: 0;
+	padding: 1px 4px;
+	line-height: 18px;
 	white-space: pre;
+}
+
+.gtfo-comment-list li:hover {
+	color: var(--gtfo-tree-color);
+	background: #262626;
 }
 
 #gtfo-source-code {

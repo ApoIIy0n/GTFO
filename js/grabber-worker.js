@@ -104,7 +104,8 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 	var stringReturnState = 'code';
 	var regexReturnState = 'code';
 	var regexInCharacterClass = false;
-	var templateExpressionDepth = 0;
+	var templateReturnStates = [];
+	var templateExpressionStack = [];
 	var blockStartLine = 0;
 	var blockText = '';
 
@@ -145,8 +146,31 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 		state = 'regex';
 	}
 
+	function enterTemplate(returnState) {
+		templateReturnStates.push(returnState);
+		state = 'template';
+	}
+
+	function enterTemplateExpression() {
+		templateExpressionStack.push(1);
+		state = 'template-expression';
+	}
+
+	function incrementTemplateExpressionDepth() {
+		templateExpressionStack[templateExpressionStack.length - 1]++;
+	}
+
+	function decrementTemplateExpressionDepth() {
+		var depth = templateExpressionStack.pop() - 1;
+		if (depth > 0) {
+			templateExpressionStack.push(depth);
+			return;
+		}
+		state = 'template';
+	}
+
 	function returnToCodeState() {
-		return sourceType == 'javascript' && templateExpressionDepth > 0 ? 'template-expression' : 'code';
+		return sourceType == 'javascript' && templateExpressionStack.length > 0 ? 'template-expression' : 'code';
 	}
 
 	for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
@@ -165,7 +189,7 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 					state = character;
 				}
 				else if (sourceType == 'javascript' && character == '`')
-					state = 'template';
+					enterTemplate('code');
 				else if (sourceType == 'javascript' && character == '/' && nextCharacter == '/' && !isEscaped(line, index)) {
 					ranges.push({ start: lineIndex, end: lineIndex, text: line.slice(index) });
 					break;
@@ -185,10 +209,9 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 			}
 			else if (state == 'template') {
 				if (character == '`' && !isEscaped(line, index))
-					state = 'code';
+					state = templateReturnStates.pop() || 'code';
 				else if (character == '$' && nextCharacter == '{' && !isEscaped(line, index)) {
-					templateExpressionDepth = 1;
-					state = 'template-expression';
+					enterTemplateExpression();
 					index++;
 				}
 			}
@@ -198,13 +221,11 @@ function gtfoGetCodeCommentRanges(lines, sourceType) {
 					state = character;
 				}
 				else if (character == '`')
-					state = 'template';
+					enterTemplate('template-expression');
 				else if (character == '{')
-					templateExpressionDepth++;
+					incrementTemplateExpressionDepth();
 				else if (character == '}') {
-					templateExpressionDepth--;
-					if (templateExpressionDepth <= 0)
-						state = 'template';
+					decrementTemplateExpressionDepth();
 				}
 				else if (character == '/' && nextCharacter == '/' && !isEscaped(line, index)) {
 					ranges.push({ start: lineIndex, end: lineIndex, text: line.slice(index) });
