@@ -91,13 +91,23 @@ function injectPage(file, title) {
 	});
 }
 
+function showPopupPane(paneId) {
+	document.querySelectorAll('.gtfo-pane').forEach((pane) => {
+		pane.classList.toggle('gtfo-pane-active', pane.id == paneId);
+	});
+}
+
 function listenForClicks() {
 	document.addEventListener("click", (e) => {
-		var selected = e.target.id;
+		var selectedElement = e.target.closest('[id]');
+		var selected = selectedElement ? selectedElement.id : '';
 
 		switch (selected) {
 			case "gtfo_grabber":
-				sendTabMessage("gtfo_grabber", { preferredTab: 'Urls' });
+				showPopupPane('gtfo_grabber_pane');
+				break;
+			case "gtfo_back_main":
+				showPopupPane('gtfo_main_pane');
 				break;
 			case "gtfo_grabber_urls":
 				sendTabMessage("gtfo_grabber", { preferredTab: 'Urls' });

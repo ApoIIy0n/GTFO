@@ -1203,6 +1203,40 @@ function gtfoBuildImageDownloadName(host, imageInfo) {
 	return `${gtfoSanitizeFileName(host || 'website')}_${fileName}`;
 }
 
+function gtfoBuildImageBase64DownloadName(host, imageInfo) {
+	return `${gtfoBuildImageDownloadName(host, imageInfo)}.txt`;
+}
+
+async function gtfoDownloadUrl(url, filename, saveAs) {
+	if (typeof browser == 'object' && browser.downloads && browser.downloads.download) {
+		try {
+			await browser.downloads.download({
+				url: url,
+				filename: filename,
+				saveAs: !!saveAs
+			});
+			return;
+		}
+		catch (error) {
+			console.warn('GTFO downloads API fallback used.', error);
+		}
+	}
+
+	var link = document.createElement('a');
+	link.href = url;
+	link.download = filename;
+	link.click();
+}
+
+function gtfoBlobToDataUrl(blob) {
+	return new Promise((resolve, reject) => {
+		var reader = new FileReader();
+		reader.onload = () => resolve(reader.result);
+		reader.onerror = () => reject(reader.error || new Error('Could not encode image as Base64.'));
+		reader.readAsDataURL(blob);
+	});
+}
+
 function gtfoFormatBytes(bytes) {
 	if (!Number.isFinite(bytes))
 		return '';
@@ -1420,19 +1454,59 @@ function gtfoCreateImagesLayout() {
 	var contextMenu = document.createElement('div');
 	contextMenu.id = 'gtfo-image-context-menu';
 
-	for (let action of [
-		{ id: 'view', text: 'View' },
-		{ id: 'save', text: 'Save' },
-		{ id: 'copy', text: 'Copy' },
-		{ id: 'inspect', text: 'Inspect' }
-	]) {
+	function appendContextItem(parent, action) {
+		if (action.separator) {
+			var separator = document.createElement('div');
+			separator.className = 'gtfo-image-context-separator';
+			parent.appendChild(separator);
+			return separator;
+		}
+
 		var item = document.createElement('button');
 		item.className = 'gtfo-image-context-item';
 		item.type = 'button';
-		item.dataset.action = action.id;
 		item.textContent = action.text;
-		contextMenu.appendChild(item);
+
+		if (action.id)
+			item.dataset.action = action.id;
+
+		parent.appendChild(item);
+		return item;
 	}
+
+	function appendContextSubmenu(parent, text, actions) {
+		var submenu = document.createElement('div');
+		submenu.className = 'gtfo-image-context-submenu';
+
+		var button = appendContextItem(submenu, { text: text });
+		button.classList.add('gtfo-image-context-submenu-button');
+		button.setAttribute('aria-haspopup', 'true');
+
+		var menu = document.createElement('div');
+		menu.className = 'gtfo-image-context-submenu-menu';
+		actions.forEach((action) => appendContextItem(menu, action));
+
+		submenu.appendChild(menu);
+		parent.appendChild(submenu);
+	}
+
+	appendContextItem(contextMenu, { id: 'view', text: 'View' });
+	appendContextItem(contextMenu, { separator: true });
+	appendContextSubmenu(contextMenu, 'Save', [
+		{ id: 'save', text: 'Save' },
+		{ id: 'save-as', text: 'Save As...' },
+		{ separator: true },
+		{ id: 'save-base64', text: 'Save Base64' },
+		{ id: 'save-base64-as', text: 'Save Base64 As...' }
+	]);
+	appendContextSubmenu(contextMenu, 'Copy', [
+		{ id: 'copy-file', text: 'File' },
+		{ separator: true },
+		{ id: 'copy-location', text: 'Location' },
+		{ separator: true },
+		{ id: 'copy-base64', text: 'Base64' }
+	]);
+	appendContextItem(contextMenu, { id: 'inspect', text: 'Inspect' });
 
 	var infoOverlay = document.createElement('div');
 	infoOverlay.id = 'gtfo-image-info-overlay';
@@ -2927,8 +3001,8 @@ function gtfoBuildImages(data) {
 	function openImageContextMenu(event, imageInfo) {
 		event.preventDefault();
 		contextImageInfo = imageInfo;
-		contextMenu.style.left = `${Math.min(event.clientX, window.innerWidth - 170)}px`;
-		contextMenu.style.top = `${Math.min(event.clientY, window.innerHeight - 120)}px`;
+		contextMenu.style.left = `${Math.max(8, Math.min(event.clientX, window.innerWidth - 340))}px`;
+		contextMenu.style.top = `${Math.max(8, Math.min(event.clientY, window.innerHeight - 220))}px`;
 		contextMenu.classList.add('gtfo-context-menu-open');
 	}
 
@@ -2975,26 +3049,22 @@ function gtfoBuildImages(data) {
 	previousButton.addEventListener('click', () => goToImagePage(activePage - 1));
 	nextButton.addEventListener('click', () => goToImagePage(activePage + 1));
 
-	async function gtfoDownloadImage(imageInfo) {
+	async function gtfoDownloadImage(imageInfo, saveAs) {
 		var downloadName = gtfoBuildImageDownloadName(host, imageInfo);
-		var link = document.createElement('a');
-		link.download = downloadName;
+		var objectUrl = '';
 
 		try {
-			var response = await fetch(imageInfo.url);
-			if (!response.ok)
-				throw new Error(`HTTP ${response.status}`);
-
-			var blob = await response.blob();
-			var objectUrl = URL.createObjectURL(blob);
-			link.href = objectUrl;
-			link.click();
-			setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+			var blob = await gtfoGetImageBlob(imageInfo);
+			objectUrl = URL.createObjectURL(blob);
+			await gtfoDownloadUrl(objectUrl, downloadName, saveAs);
 		}
 		catch (error) {
 			console.warn('GTFO image download fallback used.', error);
-			link.href = imageInfo.url;
-			link.click();
+			await gtfoDownloadUrl(imageInfo.url, downloadName, saveAs);
+		}
+		finally {
+			if (objectUrl)
+				setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 		}
 	}
 
@@ -3040,6 +3110,24 @@ function gtfoBuildImages(data) {
 		}
 
 		throw new Error('Image clipboard API is not available.');
+	}
+
+	async function gtfoGetImageBase64(imageInfo) {
+		var blob = await gtfoGetImageBlob(imageInfo);
+		return gtfoBlobToDataUrl(blob);
+	}
+
+	async function gtfoDownloadImageBase64(imageInfo, saveAs) {
+		var base64 = await gtfoGetImageBase64(imageInfo);
+		var blob = new Blob([base64], { type: 'text/plain;charset=utf-8' });
+		var objectUrl = URL.createObjectURL(blob);
+
+		try {
+			await gtfoDownloadUrl(objectUrl, gtfoBuildImageBase64DownloadName(host, imageInfo), saveAs);
+		}
+		finally {
+			setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+		}
 	}
 
 	async function gtfoBuildImageInfo(imageInfo) {
@@ -3095,6 +3183,11 @@ function gtfoBuildImages(data) {
 		if (!item || !contextImageInfo)
 			return;
 
+		event.stopPropagation();
+
+		if (!item.dataset.action)
+			return;
+
 		var imageInfo = contextImageInfo;
 		closeImageContextMenu();
 
@@ -3103,8 +3196,18 @@ function gtfoBuildImages(data) {
 				gtfoViewImage(imageInfo);
 			else if (item.dataset.action == 'save')
 				await gtfoDownloadImage(imageInfo);
-			else if (item.dataset.action == 'copy')
+			else if (item.dataset.action == 'save-as')
+				await gtfoDownloadImage(imageInfo, true);
+			else if (item.dataset.action == 'save-base64')
+				await gtfoDownloadImageBase64(imageInfo);
+			else if (item.dataset.action == 'save-base64-as')
+				await gtfoDownloadImageBase64(imageInfo, true);
+			else if (item.dataset.action == 'copy-file')
 				await gtfoCopyImage(imageInfo);
+			else if (item.dataset.action == 'copy-location')
+				await navigator.clipboard.writeText(imageInfo.url);
+			else if (item.dataset.action == 'copy-base64')
+				await navigator.clipboard.writeText(await gtfoGetImageBase64(imageInfo));
 			else if (item.dataset.action == 'inspect')
 				await gtfoInspectImage(imageInfo);
 		}

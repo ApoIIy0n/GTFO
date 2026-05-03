@@ -1,7 +1,13 @@
 html,
 body {
-  width: 130px;
-  background-color: #1b1b23;
+  width: 170px;
+  margin: 0;
+  background-color: #1a1a1a;
+  overflow-x: hidden;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 .hidden {
@@ -10,39 +16,72 @@ body {
 
 .button {
   display: block;
-  box-sizing: border-box;
   width: 100%;
   border: 0;
   font-family: 'Consolas', consolas !important;
-  margin: 1% auto;
-  padding: 1px;
+  margin: 0;
+  padding: 8px 12px;
   text-align: left;
-  font-size: 0.85em;
+  font-size: 12px;
   color: #FFFFFF;
   cursor: pointer;
 }
 
+.gtfo-container {
+  position: relative;
+  width: 100%;
+  border: 1px solid #777;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.gtfo-pane {
+  display: none;
+}
+
+.gtfo-pane-active {
+  display: block;
+}
+
+.gtfo-pane-title {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  border-bottom: 1px solid #555;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font: 12px Consolas, consolas;
+  text-align: right;
+}
+
+.gtfo-pane-title span:last-child {
+  padding-right: 12px;
+}
+
+.gtfo-pane-title:hover {
+  color: #ff0000;
+  background: #262626;
+}
+
+.gtfo-back-icon {
+  padding-left: 6px;
+  font: 16px Consolas, consolas;
+  text-align: left;
+}
+
 .gtfo-menu-button::after {
-  content: " v";
+  content: ">";
   float: right;
 }
 
-.gtfo-submenu {
-  display: block;
-  margin-left: 12px;
-  border-left: 1px solid #555;
-  padding-left: 6px;
-}
-
-.gtfo-submenu-button {
-  color: #cfcfcf;
-}
-
 .selector {
-  background-color: #1b1b23;
+  background-color: transparent;
 }
 
 .selector:hover {
   color: #FF0000;
-  --background-color: #666666;
+  background: #262626;
 }

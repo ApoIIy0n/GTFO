@@ -6,8 +6,16 @@
 	<title>GTFO</title>
 	<link rel="icon" type="image/x-icon" href="../icons/GTFO_96.png">
 	<style>
+		html,
 		body {
+			height: 100%;
+		}
+
+		body {
+			display: grid;
+			grid-template-rows: auto auto minmax(0, 1fr);
 			margin: 0;
+			overflow: hidden;
 			background-color: #313131;
 			color: white;
 			font-family: Consolas, monospace;
@@ -20,11 +28,48 @@
 
 		#gtfo-grabber-topbar {
 			display: flex;
-			height: 30px;
+			align-items: flex-end;
+			gap: 4px;
+			height: 38px;
+			padding: 0 10px;
+			box-sizing: border-box;
 			background-color: #1a1a1a;
+			border-bottom: 1px solid #262626;
 		}
 
-		.gtfo-tab-button,
+		#gtfo-grabber-topbar-icon {
+			flex: 0 0 auto;
+			width: 16px;
+			height: 16px;
+			margin: 0 8px 11px 0;
+		}
+
+		.gtfo-tab-button {
+			position: relative;
+			cursor: pointer;
+			background: transparent;
+			color: white;
+			border: 0;
+			font: 15px Consolas, monospace;
+			height: 28px;
+			padding: 0 18px;
+			border-radius: 8px 8px 0 0;
+		}
+
+		.gtfo-tab-button::after {
+			content: attr(data-tab);
+			position: absolute;
+			left: 10px;
+			bottom: 0;
+			width: max-content;
+			height: 1px;
+			color: transparent;
+			border-bottom: 1px solid transparent;
+			font: 14px Consolas, monospace;
+			padding: 0 8px;
+			pointer-events: none;
+		}
+
 		.gtfo-tool-button {
 			cursor: pointer;
 			background: transparent;
@@ -32,12 +77,20 @@
 			color: white;
 			font: 12px Consolas, monospace;
 			padding: 3px 18px;
-			margin-right: 1px;
 		}
 
 		.gtfo-tab-button:hover,
-		.gtfo-tool-button:hover,
 		.gtfo-tab-button-active {
+			background: #262626;
+			color: red;
+		}
+
+		.gtfo-tab-button:hover::after,
+		.gtfo-tab-button-active::after {
+			border-bottom-color: red;
+		}
+
+		.gtfo-tool-button:hover {
 			color: red;
 			border-color: red;
 		}
@@ -60,10 +113,13 @@
 
 		.tabcontent {
 			display: none;
+			min-height: 0;
 		}
 
 		.tabcontent-active {
 			display: block;
+			height: 100%;
+			overflow: hidden;
 		}
 
 		#gtfo-loading {
@@ -146,14 +202,15 @@
 		}
 
 		#Page iframe {
+			display: block;
 			width: 100%;
-			height: calc(100vh - 68px);
+			height: 100%;
 			border: 0;
 			background: white;
 		}
 
 		#Urls {
-			height: calc(100vh - 68px);
+			height: 100%;
 			overflow: auto;
 		}
 
@@ -190,17 +247,17 @@
 		}
 
 		#Images {
-			height: calc(100vh - 68px);
+			height: 100%;
 			overflow: hidden;
 		}
 
 		#Sources {
-			height: calc(100vh - 68px);
+			height: 100%;
 			overflow: hidden;
 		}
 
 		.gtfo-tab-loading {
-			height: calc(100vh - 68px);
+			height: 100%;
 			display: grid;
 			place-items: center;
 			background: #1f1f1f;
@@ -975,6 +1032,26 @@
 			box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 		}
 
+		.gtfo-image-context-submenu {
+			position: relative;
+		}
+
+		.gtfo-image-context-submenu-menu {
+			position: absolute;
+			top: -1px;
+			left: 100%;
+			display: none;
+			min-width: 175px;
+			background: #1a1a1a;
+			border: 1px solid #777;
+			box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+		}
+
+		.gtfo-image-context-submenu:hover .gtfo-image-context-submenu-menu,
+		.gtfo-image-context-submenu:focus-within .gtfo-image-context-submenu-menu {
+			display: block;
+		}
+
 		#gtfo-image-context-menu.gtfo-context-menu-open {
 			display: block;
 		}
@@ -994,6 +1071,17 @@
 		.gtfo-image-context-item:hover {
 			color: red;
 			background: #262626;
+		}
+
+		.gtfo-image-context-submenu-button::after {
+			content: ">";
+			float: right;
+		}
+
+		.gtfo-image-context-separator {
+			height: 1px;
+			margin: 4px 0;
+			background: #555;
 		}
 
 		#gtfo-image-info-overlay {
@@ -1122,6 +1210,7 @@
 		</div>
 	</div>
 	<div id="gtfo-grabber-topbar">
+		<img id="gtfo-grabber-topbar-icon" src="../icons/GTFO_48.png" alt="">
 		<button class="gtfo-tab-button" data-tab="Page">Page</button>
 		<button class="gtfo-tab-button" data-tab="Urls">Urls</button>
 		<button class="gtfo-tab-button" data-tab="Sources">Sources</button>

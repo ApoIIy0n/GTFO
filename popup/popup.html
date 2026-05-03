@@ -8,18 +8,22 @@
 
 <body>
 	<div class="gtfo-container">
-		<div class="gtfo-menu">
+		<div class="gtfo-pane gtfo-pane-active" id="gtfo_main_pane">
 			<button class="button selector gtfo-menu-button" id="gtfo_grabber" type="button">Grabber</button>
-			<div class="gtfo-submenu">
-				<button class="button selector gtfo-submenu-button" id="gtfo_grabber_urls" type="button">Urls</button>
-				<button class="button selector gtfo-submenu-button" id="gtfo_grabber_sources" type="button">Sources</button>
-				<button class="button selector gtfo-submenu-button" id="gtfo_grabber_images" type="button">Images</button>
-			</div>
+			<button class="button selector" id="gtfo_rightclick" type="button">RightClick</button>
+			<button class="button selector" id="gtfo_unhide" type="button">UnHide</button>
+			<hr class="solid" />
+			<button class="button selector" id="gtfo_settings" type="button">Settings</button>
 		</div>
-		<div class="button selector" id="gtfo_rightclick">RightClick</div>
-		<div class="button selector" id="gtfo_unhide">UnHide</div>
-		<hr class="solid" />
-		<div class="button selector" id="gtfo_settings">Settings</div>
+		<div class="gtfo-pane" id="gtfo_grabber_pane">
+			<button class="gtfo-pane-title" id="gtfo_back_main" type="button">
+				<span class="gtfo-back-icon">&lt;</span>
+				<span>Grabber</span>
+			</button>
+			<button class="button selector" id="gtfo_grabber_urls" type="button">Urls</button>
+			<button class="button selector" id="gtfo_grabber_sources" type="button">Sources</button>
+			<button class="button selector" id="gtfo_grabber_images" type="button">Images</button>
+		</div>
 	</div>
 
 	<script src="../js/script.js"></script>
