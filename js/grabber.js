@@ -553,8 +553,53 @@ function gtfoCreateDropdown(id, toggleId, options, defaultValue) {
 	dropdown.className = 'gtfo-selection-dropdown';
 	dropdown.dataset.value = defaultValue;
 
-	var selectedOption = options.find((option) => option.value == defaultValue) || options[0];
-	var longestLabel = options.reduce((longest, option) => option.label.length > longest.length ? option.label : longest, '');
+	function getSelectableOptions(optionList) {
+		return optionList.flatMap((option) => {
+			if (option.separator)
+				return [];
+			if (Array.isArray(option.children))
+				return getSelectableOptions(option.children);
+			return [option];
+		});
+	}
+
+	function appendOptions(parent, optionList) {
+		for (let optionData of optionList) {
+			if (optionData.separator) {
+				var separator = document.createElement('div');
+				separator.className = 'gtfo-selection-menu-separator';
+				parent.appendChild(separator);
+				continue;
+			}
+
+			if (Array.isArray(optionData.children)) {
+				var submenu = document.createElement('div');
+				submenu.className = 'gtfo-selection-submenu';
+				var submenuToggle = document.createElement('button');
+				submenuToggle.type = 'button';
+				submenuToggle.className = 'gtfo-selection-submenu-toggle';
+				submenuToggle.textContent = optionData.label;
+				var submenuMenu = document.createElement('div');
+				submenuMenu.className = 'gtfo-selection-submenu-menu';
+				appendOptions(submenuMenu, optionData.children);
+				submenu.appendChild(submenuToggle);
+				submenu.appendChild(submenuMenu);
+				parent.appendChild(submenu);
+				continue;
+			}
+
+			var option = document.createElement('button');
+			option.type = 'button';
+			option.className = 'gtfo-selection-option';
+			option.value = optionData.value;
+			option.textContent = optionData.label;
+			parent.appendChild(option);
+		}
+	}
+
+	var selectableOptions = getSelectableOptions(options);
+	var selectedOption = selectableOptions.find((option) => option.value == defaultValue) || selectableOptions[0];
+	var longestLabel = selectableOptions.reduce((longest, option) => option.label.length > longest.length ? option.label : longest, '');
 
 	var toggle = document.createElement('button');
 	toggle.type = 'button';
@@ -565,13 +610,7 @@ function gtfoCreateDropdown(id, toggleId, options, defaultValue) {
 
 	var menu = document.createElement('div');
 	menu.className = 'gtfo-selection-menu';
-	for (let optionData of options) {
-		var option = document.createElement('button');
-		option.type = 'button';
-		option.value = optionData.value;
-		option.textContent = optionData.label;
-		menu.appendChild(option);
-	}
+	appendOptions(menu, options);
 
 	dropdown.appendChild(toggle);
 	dropdown.appendChild(menu);
@@ -605,12 +644,19 @@ function gtfoCreateCommentLayout() {
 	sourceActions.appendChild(prettifyButton);
 
 	var selectionMode = gtfoCreateDropdown('gtfo-selection-export-mode', 'gtfo-selection-export-toggle', [
-		{ value: 'all', label: 'All selected' },
-		{ value: 'red', label: 'Red' },
-		{ value: 'green', label: 'Green' },
-		{ value: 'orange', label: 'Orange' },
-		{ value: 'cyan', label: 'Cyan' }
-	], 'all');
+		{ value: 'source', label: 'Source' },
+		{
+			label: 'By Selection',
+			children: [
+				{ value: 'red', label: 'Red' },
+				{ value: 'green', label: 'Green' },
+				{ value: 'orange', label: 'Orange' },
+				{ value: 'cyan', label: 'Cyan' },
+				{ separator: true },
+				{ value: 'all', label: 'All selected' }
+			]
+		}
+	], 'source');
 	sourceActions.appendChild(selectionMode);
 
 	var copySelectionsButton = document.createElement('button');
@@ -629,6 +675,7 @@ function gtfoCreateCommentLayout() {
 
 	var sourceCode = document.createElement('pre');
 	sourceCode.id = 'gtfo-source-code';
+	sourceCode.tabIndex = 0;
 
 	var sourceMarkers = document.createElement('div');
 	sourceMarkers.id = 'gtfo-source-markers';
@@ -1317,6 +1364,39 @@ function gtfoBuildComments(data) {
 			scheduleSourceMarkerUpdate();
 	});
 
+	document.addEventListener('keydown', (event) => {
+		if (event.key.toLowerCase() != 'a' || (!event.ctrlKey && !event.metaKey) || event.altKey)
+			return;
+
+		var sourceCode = document.getElementById('gtfo-source-code');
+		var sourcePanel = document.getElementById('gtfo-source-panel');
+		var selection = window.getSelection();
+		var activeElement = document.activeElement;
+		var isSourceFocused = sourcePanel && activeElement && sourcePanel.contains(activeElement);
+		var isSourceSelected = false;
+
+		if (sourceCode && selection && selection.rangeCount > 0) {
+			for (let index = 0; index < selection.rangeCount; index++) {
+				if (selection.getRangeAt(index).intersectsNode(sourceCode)) {
+					isSourceSelected = true;
+					break;
+				}
+			}
+		}
+
+		if (!sourceCode || (!isSourceFocused && !isSourceSelected))
+			return;
+
+		event.preventDefault();
+		sourceCode.focus({ preventScroll: true });
+		var range = document.createRange();
+		range.selectNodeContents(sourceCode);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		if (updateActiveSourceMarkers)
+			scheduleSourceMarkerUpdate();
+	});
+
 	function scheduleSourceMarkerUpdate() {
 		if (!updateActiveSourceMarkers || sourceMarkerResizeFrame)
 			return;
@@ -1414,6 +1494,12 @@ function gtfoBuildComments(data) {
 	}
 
 	function gtfoGetSourceSelectionText(mode) {
+		if (mode == 'source') {
+			var sourceStateKey = activeGroup ? gtfoGetSourceStateKey(activeGroup) : '';
+			var source = sourceStateKey ? sourceTextBySource.get(sourceStateKey) : '';
+			return typeof source == 'string' ? source : (activeGroup && activeGroup.source) || '';
+		}
+
 		var cyanSelection = gtfoGetCyanSelectionText();
 		if (mode == 'cyan')
 			return cyanSelection;
@@ -1472,7 +1558,7 @@ function gtfoBuildComments(data) {
 		event.stopPropagation();
 		selectionDropdown.classList.toggle('gtfo-selection-dropdown-open');
 	});
-	selectionDropdown.querySelectorAll('.gtfo-selection-menu button').forEach((option) => {
+	selectionDropdown.querySelectorAll('.gtfo-selection-option').forEach((option) => {
 		option.addEventListener('click', (event) => {
 			event.stopPropagation();
 			selectionDropdown.dataset.value = option.value;
@@ -1480,8 +1566,8 @@ function gtfoBuildComments(data) {
 			selectionDropdown.classList.remove('gtfo-selection-dropdown-open');
 		});
 	});
-	document.addEventListener('click', () => selectionDropdown.classList.remove('gtfo-selection-dropdown-open'));
 	document.addEventListener('click', () => {
+		selectionDropdown.classList.remove('gtfo-selection-dropdown-open');
 		var searchScope = document.getElementById('gtfo-source-search-scope');
 		if (searchScope)
 			searchScope.classList.remove('gtfo-selection-dropdown-open');
@@ -1534,7 +1620,7 @@ function gtfoBuildComments(data) {
 		event.stopPropagation();
 		searchScopeInput.classList.toggle('gtfo-selection-dropdown-open');
 	});
-	searchScopeInput.querySelectorAll('.gtfo-selection-menu button').forEach((option) => {
+	searchScopeInput.querySelectorAll('.gtfo-selection-option').forEach((option) => {
 		option.addEventListener('click', (event) => {
 			event.stopPropagation();
 			searchScopeInput.dataset.value = option.value;
@@ -2050,15 +2136,24 @@ function gtfoBuildComments(data) {
 
 	function gtfoGetGroupSourceLines(group) {
 		var sourceStateKey = gtfoGetSourceStateKey(group);
+		var cachedLines = sourceLinesBySource.get(sourceStateKey);
+		if (cachedLines)
+			return cachedLines;
+
 		var source = sourceTextBySource.get(sourceStateKey);
 		if (typeof source != 'string' && prettifySource) {
 			var rawSource = group.source || '';
 			source = gtfoFormatSource(rawSource, gtfoGetSourceType(group));
 			sourceTextBySource.set(sourceStateKey, source);
 		}
-		if (typeof source != 'string')
+		if (typeof source != 'string') {
 			source = group.source || '';
-		return String(source || '').split(/\r?\n/);
+			sourceTextBySource.set(sourceStateKey, source);
+		}
+
+		var lines = String(source || '').split(/\r?\n/);
+		sourceLinesBySource.set(sourceStateKey, lines);
+		return lines;
 	}
 
 	function gtfoGetLineMatches(line, matcher, regexMode) {
@@ -2268,8 +2363,7 @@ function gtfoBuildComments(data) {
 				if (matches.length == 0)
 					continue;
 
-				totalMatches += matches.length;
-				var resultMatches = matches.map((match, matchIndex) => {
+				var resultMatches = matches.map((match) => {
 					var text = match[0] || '';
 					var start = Number.isFinite(match.index) ? match.index : line.indexOf(text);
 					var end = start + text.length;
@@ -2284,10 +2378,14 @@ function gtfoBuildComments(data) {
 						text: text
 					};
 				}).filter((match) => match.text && match.start >= 0);
+				if (resultMatches.length == 0)
+					continue;
+
+				totalMatches += resultMatches.length;
 				currentSearchResults.push.apply(currentSearchResults, resultMatches);
 				groupMatches.push({
 					lineIndex: lineIndex,
-					count: matches.length,
+					count: resultMatches.length,
 					preview: line.trim() || ' ',
 					matches: resultMatches
 				});

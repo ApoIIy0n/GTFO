@@ -813,7 +813,8 @@ a:hover {
 	display: block;
 }
 
-.gtfo-selection-menu button {
+.gtfo-selection-menu button,
+.gtfo-selection-submenu-menu button {
 	display: block;
 	width: 100%;
 	padding: 5px 10px;
@@ -826,8 +827,46 @@ a:hover {
 	cursor: pointer;
 }
 
+.gtfo-selection-submenu {
+	position: relative;
+}
+
+.gtfo-selection-submenu-toggle {
+	position: relative;
+	padding-right: 28px !important;
+}
+
+.gtfo-selection-submenu-toggle::after {
+	content: ">";
+	position: absolute;
+	right: 10px;
+}
+
+.gtfo-selection-submenu-menu {
+	position: absolute;
+	top: -1px;
+	left: 100%;
+	display: none;
+	min-width: 100%;
+	background: #1a1a1a;
+	border: 1px solid #777;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.gtfo-selection-submenu:hover .gtfo-selection-submenu-menu,
+.gtfo-selection-submenu:focus-within .gtfo-selection-submenu-menu {
+	display: block;
+}
+
+.gtfo-selection-menu-separator {
+	height: 1px;
+	margin: 3px 0;
+	background: #444;
+}
+
 .gtfo-selection-menu button:hover,
-.gtfo-selection-menu button:focus-visible {
+.gtfo-selection-menu button:focus-visible,
+.gtfo-selection-submenu:hover > .gtfo-selection-submenu-toggle {
 	color: red;
 }
 

@@ -19,9 +19,6 @@ $TempDir = "temp_creation"
 
 $ToolsDir = "tools"
 $PortableNodeDir = "tools\node"
-$NodeVersion = "v24.15.0"
-$NodeZipName = "node-$NodeVersion-win-x64.zip"
-$NodeZipUrl = "https://nodejs.org/dist/$NodeVersion/$NodeZipName"
 
 $RequiredPackages = @(
     "html-minifier-terser",
@@ -85,7 +82,42 @@ function Safe-ZipNamePart {
     return $Value.Trim()
 }
 
+function Get-LatestNodeLtsWindowsX64 {
+    Write-Step "Finding latest Node.js LTS portable version"
+
+    $IndexUrl = "https://nodejs.org/dist/index.json"
+
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+        $Versions = Invoke-RestMethod -Uri $IndexUrl
+
+        $LatestLts = $Versions |
+            Where-Object {
+                $_.lts -ne $false -and
+                $_.files -contains "win-x64-zip"
+            } |
+            Select-Object -First 1
+
+        if ($null -eq $LatestLts) {
+            Fail "Could not find a suitable Node.js LTS Windows x64 ZIP version."
+        }
+
+        Write-ItemLog "Latest Node.js LTS found: $($LatestLts.version)"
+
+        return $LatestLts.version
+    }
+    catch {
+        Fail "Could not check latest Node.js LTS version. $($_.Exception.Message)"
+    }
+}
+
 function Download-PortableNode {
+    $NodeVersion = Get-LatestNodeLtsWindowsX64
+
+    $NodeZipName = "node-$NodeVersion-win-x64.zip"
+    $NodeZipUrl = "https://nodejs.org/dist/$NodeVersion/$NodeZipName"
+
     Write-Step "Downloading portable Node.js"
 
     $ToolsPath = Join-Path $ProjectRoot $ToolsDir
@@ -116,7 +148,8 @@ function Download-PortableNode {
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $NodeZipUrl -OutFile $DownloadPath
-    } catch {
+    }
+    catch {
         Fail "Could not download portable Node.js. $($_.Exception.Message)"
     }
 
@@ -162,6 +195,50 @@ function Enable-PortableNode {
     return $true
 }
 
+function New-MozillaSafeZip {
+    param(
+        [string]$SourceFolder,
+        [string]$DestinationZip
+    )
+
+    if (Test-Path -LiteralPath $DestinationZip) {
+        Remove-Item -LiteralPath $DestinationZip -Force
+    }
+
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+    $Zip = [System.IO.Compression.ZipFile]::Open(
+        $DestinationZip,
+        [System.IO.Compression.ZipArchiveMode]::Create
+    )
+
+    try {
+        $FilesToZip = Get-ChildItem -LiteralPath $SourceFolder -Recurse -File
+
+        foreach ($File in $FilesToZip) {
+            $RelativePath = $File.FullName.Substring($SourceFolder.Length).TrimStart("\", "/")
+
+            # Mozilla requires forward slashes in archive file names.
+            # Example: css/grabber.css
+            # Not:     css\grabber.css
+            $EntryName = $RelativePath.Replace("\", "/")
+
+            Write-ItemLog "Adding to zip: $EntryName"
+
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $Zip,
+                $File.FullName,
+                $EntryName,
+                [System.IO.Compression.CompressionLevel]::Optimal
+            ) | Out-Null
+        }
+    }
+    finally {
+        $Zip.Dispose()
+    }
+}
+
 # -----------------------------
 # Start in script folder
 # -----------------------------
@@ -196,18 +273,21 @@ $UsingPortableNode = $false
 if ((Test-CommandExists "node") -and (Test-CommandExists "npm")) {
     $UsingSystemNode = $true
     Write-ItemLog "System Node.js found"
-} else {
+}
+else {
     Write-ItemLog "System Node.js was not found"
 
     if (Enable-PortableNode) {
         $UsingPortableNode = $true
-    } else {
+    }
+    else {
         Write-ItemLog "Portable Node.js was not found in $PortableNodeDir"
         Download-PortableNode
 
         if (Enable-PortableNode) {
             $UsingPortableNode = $true
-        } else {
+        }
+        else {
             Fail "Portable Node.js was downloaded, but node.exe or npm.cmd could not be found."
         }
     }
@@ -245,7 +325,8 @@ $PackageJsonPath = Join-Path $ProjectRoot "package.json"
 if (-not (Test-Path -LiteralPath $PackageJsonPath)) {
     Write-ItemLog "package.json not found. Creating one locally..."
     npm init -y
-} else {
+}
+else {
     Write-ItemLog "package.json found"
 }
 
@@ -286,11 +367,16 @@ if ($MissingPackages.Count -gt 0) {
 
     Write-Host ""
     Write-Host "Package installation finished" -ForegroundColor Green
-} else {
+}
+else {
     Write-ItemLog "All required minifier packages are already installed locally"
 }
 
 # Re-check after install
+$HtmlMinifier = Get-LocalBin "html-minifier-terser"
+$Terser = Get-LocalBin "terser"
+$CleanCss = Get-LocalBin "cleancss"
+
 if (-not (Test-Path -LiteralPath $HtmlMinifier)) {
     Fail "html-minifier-terser is still missing after npm install."
 }
@@ -308,13 +394,34 @@ Write-ItemLog "Using: $Terser"
 Write-ItemLog "Using: $CleanCss"
 
 # -----------------------------
+# Optional npm vulnerability audit
+# -----------------------------
+Write-Step "Running npm vulnerability audit"
+
+npm audit --audit-level=moderate
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ""
+    Write-Host "npm audit found moderate or higher vulnerabilities." -ForegroundColor Yellow
+    Write-Host "Review the output above." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "You can try:" -ForegroundColor Yellow
+    Write-Host "npm audit fix" -ForegroundColor Yellow
+
+    Fail "Release stopped because npm audit found vulnerabilities."
+}
+
+Write-ItemLog "npm audit passed"
+
+# -----------------------------
 # Read manifest
 # -----------------------------
 Write-Step "Reading manifest data"
 
 try {
     $Manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
-} catch {
+}
+catch {
     Fail "Could not read or parse manifest.json. $($_.Exception.Message)"
 }
 
@@ -349,7 +456,8 @@ Write-Step "Preparing release folder"
 if (-not (Test-Path -LiteralPath $ReleasePath)) {
     New-Item -ItemType Directory -Path $ReleasePath | Out-Null
     Write-ItemLog "Created folder: $ReleaseDir"
-} else {
+}
+else {
     Write-ItemLog "Release folder already exists"
 }
 
@@ -372,7 +480,8 @@ Write-Step "Preparing temp folder"
 if (Test-Path -LiteralPath $TempPath) {
     Write-ItemLog "temp_creation exists. Deleting its contents..."
     Remove-FolderContents $TempPath
-} else {
+}
+else {
     New-Item -ItemType Directory -Path $TempPath | Out-Null
     Write-ItemLog "Created temp_creation folder"
 }
@@ -419,7 +528,8 @@ try {
 
     if ($HtmlFiles.Count -eq 0) {
         Write-ItemLog "No HTML files found"
-    } else {
+    }
+    else {
         foreach ($File in $HtmlFiles) {
             $TmpFile = "$($File.FullName).tmp"
             $RelativeFile = $File.FullName.Replace($TempPath, $TempDir)
@@ -454,7 +564,8 @@ try {
 
     if ($JsFiles.Count -eq 0) {
         Write-ItemLog "No JavaScript files found"
-    } else {
+    }
+    else {
         foreach ($File in $JsFiles) {
             $TmpFile = "$($File.FullName).tmp"
             $RelativeFile = $File.FullName.Replace($TempPath, $TempDir)
@@ -484,7 +595,8 @@ try {
 
     if ($CssFiles.Count -eq 0) {
         Write-ItemLog "No CSS files found"
-    } else {
+    }
+    else {
         foreach ($File in $CssFiles) {
             $TmpFile = "$($File.FullName).tmp"
             $RelativeFile = $File.FullName.Replace($TempPath, $TempDir)
@@ -504,17 +616,11 @@ try {
     }
 
     # -----------------------------
-    # Zip temp_creation contents
+    # Create Mozilla-safe ZIP
     # -----------------------------
-    Write-Step "Creating release zip"
+    Write-Step "Creating Mozilla-safe release zip"
 
-    $TempContents = Join-Path $TempPath "*"
-
-    Compress-Archive `
-        -Path $TempContents `
-        -DestinationPath $ZipPath `
-        -CompressionLevel Optimal `
-        -Force
+    New-MozillaSafeZip -SourceFolder $TempPath -DestinationZip $ZipPath
 
     Write-ItemLog "Created zip: $ZipPath"
 
@@ -534,7 +640,8 @@ finally {
     if (Test-Path -LiteralPath $TempPath) {
         Remove-Item -LiteralPath $TempPath -Recurse -Force
         Write-ItemLog "Deleted temp_creation folder"
-    } else {
+    }
+    else {
         Write-ItemLog "temp_creation folder was already gone"
     }
 }
